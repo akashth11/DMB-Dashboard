@@ -642,7 +642,7 @@ function renderPaginationControls(currentPage, totalPages, viewName) {
     return `
         <div class="pagination-container">
             <button class="pagination-btn" 
-                onclick="changePage('${viewName}', ${currentPage - 1})"
+                data-view="${viewName}" data-page="${currentPage - 1}"
                 ${currentPage === 1 ? 'disabled' : ''}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M15 18l-6-6 6-6"/>
@@ -653,7 +653,7 @@ function renderPaginationControls(currentPage, totalPages, viewName) {
                 Page ${currentPage} of ${totalPages}
             </span>
             <button class="pagination-btn" 
-                onclick="changePage('${viewName}', ${currentPage + 1})"
+                data-view="${viewName}" data-page="${currentPage + 1}"
                 ${currentPage === totalPages ? 'disabled' : ''}>
                 Next
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -664,16 +664,22 @@ function renderPaginationControls(currentPage, totalPages, viewName) {
     `;
 }
 
-// Global function for pagination clicks
-window.changePage = function (viewName, newPage) {
-    if (viewName === 'playback') {
-        currentPlaybackPage = newPage;
-        updatePlaybackView();
-    } else if (viewName === 'devices') {
-        currentDevicesPage = newPage;
-        updateDevicesView();
-    }
-};
+function setupPagination() {
+    document.addEventListener('click', function (e) {
+        const target = e.target.closest('.pagination-btn');
+        if (target && !target.disabled) {
+            const viewName = target.dataset.view;
+            const newPage = parseInt(target.dataset.page, 10);
+            if (viewName === 'playback') {
+                currentPlaybackPage = newPage;
+                updatePlaybackView();
+            } else if (viewName === 'devices') {
+                currentDevicesPage = newPage;
+                updateDevicesView();
+            }
+        }
+    });
+}
 
 function updatePlaybackView() {
     const playbackList = document.getElementById('playback-list');
@@ -986,6 +992,7 @@ function init() {
     setupNavigation();
     setupSearch();
     setupFilters();
+    setupPagination();
 
     // Connect to Firebase with Authentication
     console.log('🔐 Authenticating with Firebase...');
