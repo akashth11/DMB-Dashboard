@@ -26,6 +26,11 @@ let currentView = 'overview';
 let currentSearchQuery = '';
 let driveNamesCache = {}; // Cache for Drive file names
 
+// Pagination State
+let currentPlaybackPage = 1;
+let currentDevicesPage = 1;
+const itemsPerPage = 10;
+
 // Utility Functions
 function formatTimestamp(timestamp) {
     if (!timestamp) return 'Never';
@@ -618,6 +623,46 @@ function updateBranchesView() {
     `}).join('');
 }
 
+// Helper to render pagination controls
+function renderPaginationControls(currentPage, totalPages, viewName) {
+    if (totalPages <= 1) return '';
+
+    return `
+        <div class="pagination-container">
+            <button class="pagination-btn" 
+                onclick="changePage('${viewName}', ${currentPage - 1})"
+                ${currentPage === 1 ? 'disabled' : ''}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+                Previous
+            </button>
+            <span class="pagination-info">
+                Page ${currentPage} of ${totalPages}
+            </span>
+            <button class="pagination-btn" 
+                onclick="changePage('${viewName}', ${currentPage + 1})"
+                ${currentPage === totalPages ? 'disabled' : ''}>
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </button>
+        </div>
+    `;
+}
+
+// Global function for pagination clicks
+window.changePage = function (viewName, newPage) {
+    if (viewName === 'playback') {
+        currentPlaybackPage = newPage;
+        updatePlaybackView();
+    } else if (viewName === 'devices') {
+        currentDevicesPage = newPage;
+        updateDevicesView();
+    }
+};
+
 function updatePlaybackView() {
     const playbackList = document.getElementById('playback-list');
     const playbackSessions = Object.entries(playbackData).filter(([deviceId, session]) => {
@@ -651,7 +696,15 @@ function updatePlaybackView() {
         return;
     }
 
-    playbackList.innerHTML = playbackSessions.map(([deviceId, session]) => `
+    // Pagination Logic
+    const totalPages = Math.ceil(playbackSessions.length / itemsPerPage);
+    if (currentPlaybackPage > totalPages) currentPlaybackPage = 1;
+
+    const startIndex = (currentPlaybackPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedSessions = playbackSessions.slice(startIndex, endIndex);
+
+    const listHtml = paginatedSessions.map(([deviceId, session]) => `
         <div class="playback-card">
             <div class="playback-header">
                 <div class="playback-device">
@@ -721,6 +774,8 @@ function updatePlaybackView() {
         }
         </div>
     `).join('');
+
+    playbackList.innerHTML = listHtml + renderPaginationControls(currentPlaybackPage, totalPages, 'playback');
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -766,7 +821,15 @@ function updateDevicesView() {
         return;
     }
 
-    devicesTable.innerHTML = `
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredDevices.length / itemsPerPage);
+    if (currentDevicesPage > totalPages) currentDevicesPage = 1;
+
+    const startIndex = (currentDevicesPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedDevices = filteredDevices.slice(startIndex, endIndex);
+
+    const tableHtml = `
         <div class="device-row header">
             <div>Device</div>
             <div>Specifications</div>
@@ -775,7 +838,7 @@ function updateDevicesView() {
             <div>Screen</div>
             <div>Status</div>
         </div>
-        ${filteredDevices.map(([deviceId, device]) => {
+        ${paginatedDevices.map(([deviceId, device]) => {
         // Use playback data for lastSeen if available
         const playbackSession = playbackData[deviceId];
         let lastSeen = device.lastSeen;
@@ -836,6 +899,8 @@ function updateDevicesView() {
     }).join('')
         }
     `;
+
+    devicesTable.innerHTML = tableHtml + renderPaginationControls(currentDevicesPage, totalPages, 'devices');
 }
 
 // Navigation
