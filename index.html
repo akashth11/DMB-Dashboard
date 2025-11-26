@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Blue Tokai Coffee Digital Menu Board Dashboard - Real-time monitoring and management of signage devices">
+    <meta name="keywords" content="digital signage, menu board, dashboard, Blue Tokai Coffee">
+    <title>BTC DMB Dashboard | Blue Tokai Coffee Digital Menu Board</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Error Handler -->
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            const loadingText = document.querySelector('#loading-screen p');
+            if (loadingText) {
+                loadingText.innerHTML = `Error: ${msg}<br><small>${url}:${line}</small>`;
+                loadingText.style.color = 'var(--error)';
+            }
+            return false;
+        };
+        // Also catch unhandled promise rejections
+        window.onunhandledrejection = function (event) {
+            const loadingText = document.querySelector('#loading-screen p');
+            if (loadingText) {
+                loadingText.innerHTML = `Promise Error: ${event.reason}`;
+                loadingText.style.color = 'var(--error)';
+            }
+        };
+    </script>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Connecting to Firebase...</p>
+    </div>
+
+    <!-- Main Container -->
+    <div id="app" class="app-container" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="32" height="32" rx="8" fill="url(#gradient)" />
+                        <path d="M16 8L20 12H18V20H14V12H12L16 8Z" fill="white" />
+                        <path d="M10 22H22V24H10V22Z" fill="white" />
+                        <defs>
+                            <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
+                                <stop offset="0%" stop-color="#6366f1" />
+                                <stop offset="100%" stop-color="#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="logo-text">
+                        <h1>BTC DMB</h1>
+                        <span>Dashboard</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="overview">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                            d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                    </svg>
+                    <span>Overview</span>
+                </button>
+
+                <button class="nav-item" data-view="branches">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" />
+                    </svg>
+                    <span>Branches</span>
+                </button>
+
+                <button class="nav-item" data-view="playback">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                    </svg>
+                    <span>Active Playback</span>
+                </button>
+
+                <button class="nav-item" data-view="devices">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" />
+                    </svg>
+                    <span>Devices</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="connection-status">
+                    <div class="status-indicator" id="connection-status"></div>
+                    <span id="connection-text">Connecting...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <div class="header-left">
+                    <h2 id="view-title">Overview</h2>
+                    <p id="view-subtitle">Real-time dashboard for Blue Tokai Coffee signage system</p>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" />
+                        </svg>
+                        <input type="text" id="search-input" placeholder="Search...">
+                    </div>
+                    <div class="last-updated">
+                        <span>Last updated: <strong id="last-updated-time">--</strong></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Overview View -->
+            <div id="overview-view" class="view-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon branches-icon">
+                            <svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Total Branches</p>
+                            <h3 class="stat-value" id="stat-branches">0</h3>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon devices-icon">
+                            <svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Registered Devices</p>
+                            <h3 class="stat-value" id="stat-devices">0</h3>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon playback-icon">
+                            <svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Active Playback</p>
+                            <h3 class="stat-value" id="stat-playback">0</h3>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon online-icon">
+                            <svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M10 2a1 1 0 011 1v6a1 1 0 11-2 0V3a1 1 0 011-1zm4 4a1 1 0 01.707.293l.707.707A8 8 0 114.586 7.001l.707-.708A1 1 0 016 5.586l-.707.707a6 6 0 108.414 0l-.707-.707A1 1 0 0114 6z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Devices Turned Off</p>
+                            <h3 class="stat-value" id="stat-turned-off">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Pricing Version Distribution</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="pricing-chart" class="chart-container"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Device Types</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="device-types-chart" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Activity</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-activity" class="activity-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Branches View -->
+            <div id="branches-view" class="view-content">
+                <div class="view-controls">
+                    <div class="filter-group">
+                        <label for="pricing-filter">Filter by Pricing:</label>
+                        <select id="pricing-filter">
+                            <option value="all">All Versions</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="branches-grid" class="branches-grid"></div>
+            </div>
+
+            <!-- Playback View -->
+            <div id="playback-view" class="view-content">
+                <div id="playback-list" class="playback-list"></div>
+            </div>
+
+            <!-- Devices View -->
+            <div id="devices-view" class="view-content">
+                <div class="view-controls">
+                    <div class="filter-group">
+                        <label for="device-type-filter">Filter by Type:</label>
+                        <select id="device-type-filter">
+                            <option value="all">All Types</option>
+                            <option value="TV">TV</option>
+                            <option value="Mobile">Mobile</option>
+                            <option value="Tablet">Tablet</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="device-status-filter">Status:</label>
+                        <select id="device-status-filter">
+                            <option value="all">All</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="devices-table" class="devices-table"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="app.js?v=1"></script>
+</body>
+
+</html>

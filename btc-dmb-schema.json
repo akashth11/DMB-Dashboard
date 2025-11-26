@@ -1,0 +1,260 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "BTC DMB Database Export Schema",
+    "description": "JSON Schema for Blue Tokai Coffee Digital Menu Board database export",
+    "type": "object",
+    "properties": {
+        "branches": {
+            "type": "object",
+            "description": "Collection of branch information indexed by branch code",
+            "patternProperties": {
+                "^CA-[0-9]+$": {
+                    "type": "object",
+                    "properties": {
+                        "branchCode": {
+                            "type": "string",
+                            "pattern": "^CA-[0-9]+$",
+                            "description": "Unique branch identifier code"
+                        },
+                        "branchName": {
+                            "type": "string",
+                            "description": "Name or location of the branch"
+                        },
+                        "beverage": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URL link to beverage menu/content"
+                        },
+                        "food": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URL link to food menu/content"
+                        },
+                        "retail": {
+                            "type": "string",
+                            "description": "Comma-separated URLs for retail content/videos"
+                        },
+                        "pricingVersion": {
+                            "type": "string",
+                            "enum": [
+                                "Regular Version 1",
+                                "Premium Version 1",
+                                "Premium Version 2",
+                                "Premium Version 3",
+                                "Regular BTC+ CWK",
+                                "Premium BTC+ CWK",
+                                "Airport",
+                                "Not Found"
+                            ],
+                            "description": "Pricing tier/version for the branch"
+                        }
+                    },
+                    "required": [
+                        "branchName",
+                        "beverage",
+                        "food",
+                        "pricingVersion",
+                        "retail"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "playback": {
+            "type": "object",
+            "description": "Collection of active playback sessions indexed by device ID",
+            "patternProperties": {
+                "^[a-f0-9]{16}$": {
+                    "type": "object",
+                    "properties": {
+                        "deviceId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{16}$",
+                            "description": "Unique device identifier (16 hex characters)"
+                        },
+                        "appVersion": {
+                            "type": "string",
+                            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+                            "description": "Application version number"
+                        },
+                        "branchCode": {
+                            "type": "string",
+                            "pattern": "^CA-[0-9]+$",
+                            "description": "Associated branch code"
+                        },
+                        "branchName": {
+                            "type": "string",
+                            "description": "Associated branch name"
+                        },
+                        "category": {
+                            "type": "string",
+                            "enum": [
+                                "Food",
+                                "Beverage",
+                                "Retail"
+                            ],
+                            "description": "Content category being played"
+                        },
+                        "isTv": {
+                            "type": "boolean",
+                            "description": "Whether the device is a TV"
+                        },
+                        "status": {
+                            "type": "string",
+                            "enum": [
+                                "active",
+                                "playing",
+                                "paused",
+                                "stopped"
+                            ],
+                            "description": "Current playback status"
+                        },
+                        "timestamp": {
+                            "type": "integer",
+                            "description": "Unix timestamp in milliseconds when playback started"
+                        },
+                        "lastSeen": {
+                            "type": "integer",
+                            "description": "Unix timestamp in milliseconds of last activity"
+                        },
+                        "urls": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            "description": "Array of content URLs being played"
+                        }
+                    },
+                    "required": [
+                        "deviceId",
+                        "appVersion",
+                        "branchCode",
+                        "branchName",
+                        "category",
+                        "timestamp"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "users": {
+            "type": "object",
+            "description": "Collection of registered devices/users indexed by device ID",
+            "patternProperties": {
+                "^[a-f0-9]{16}$": {
+                    "type": "object",
+                    "properties": {
+                        "uid": {
+                            "type": "string",
+                            "description": "Firebase user ID"
+                        },
+                        "androidVersion": {
+                            "type": "string",
+                            "description": "Android OS version"
+                        },
+                        "apiLevel": {
+                            "type": "integer",
+                            "description": "Android API level"
+                        },
+                        "appVersion": {
+                            "type": "string",
+                            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+                            "description": "Application version number"
+                        },
+                        "createdAt": {
+                            "type": "integer",
+                            "description": "Unix timestamp in milliseconds when device was registered"
+                        },
+                        "lastSeen": {
+                            "type": "integer",
+                            "description": "Unix timestamp in milliseconds of last activity"
+                        },
+                        "lastUpdateTime": {
+                            "type": "integer",
+                            "description": "Unix timestamp in milliseconds of last update"
+                        },
+                        "deviceBrand": {
+                            "type": "string",
+                            "description": "Device manufacturer/brand"
+                        },
+                        "deviceModel": {
+                            "type": "string",
+                            "description": "Device model number"
+                        },
+                        "deviceType": {
+                            "type": "string",
+                            "enum": [
+                                "TV",
+                                "Mobile",
+                                "Tablet"
+                            ],
+                            "description": "Type of device"
+                        },
+                        "ipAddress": {
+                            "type": "string",
+                            "format": "ipv4",
+                            "description": "IP address of the device"
+                        },
+                        "latitude": {
+                            "type": "number",
+                            "minimum": -90,
+                            "maximum": 90,
+                            "description": "Geographic latitude"
+                        },
+                        "longitude": {
+                            "type": "number",
+                            "minimum": -180,
+                            "maximum": 180,
+                            "description": "Geographic longitude"
+                        },
+                        "locale": {
+                            "type": "string",
+                            "pattern": "^[a-z]{2}_[A-Z]{2}$",
+                            "description": "Device locale (e.g., en_US)"
+                        },
+                        "networkType": {
+                            "type": "string",
+                            "enum": [
+                                "WiFi",
+                                "Mobile",
+                                "Ethernet"
+                            ],
+                            "description": "Type of network connection"
+                        },
+                        "screenDensity": {
+                            "type": "integer",
+                            "description": "Screen density in DPI"
+                        },
+                        "screenHeight": {
+                            "type": "integer",
+                            "description": "Screen height in pixels"
+                        },
+                        "screenWidth": {
+                            "type": "integer",
+                            "description": "Screen width in pixels"
+                        }
+                    },
+                    "required": [
+                        "uid",
+                        "deviceBrand",
+                        "deviceModel",
+                        "deviceType",
+                        "createdAt",
+                        "lastSeen"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "required": [
+        "branches",
+        "playback",
+        "users"
+    ],
+    "additionalProperties": false
+}
