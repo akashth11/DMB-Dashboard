@@ -617,25 +617,75 @@ body {
 }
 
 .branch-card {
-    background: var(--bg-card);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    backdrop-filter: blur(10px);
-    transition: all var(--transition-base);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
 }
 
 .branch-card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(99, 102, 241, 0.3);
-    box-shadow: var(--shadow-xl), var(--shadow-glow);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent-color);
+}
+
+/* Pricing Version Colors */
+.branch-card.pricing-regular {
+    border-left: 4px solid #3b82f6;
+    /* Blue */
+    background: linear-gradient(145deg, rgba(59, 130, 246, 0.05), var(--card-bg));
+}
+
+.branch-card.pricing-premium {
+    border-left: 4px solid #8b5cf6;
+    /* Purple */
+    background: linear-gradient(145deg, rgba(139, 92, 246, 0.05), var(--card-bg));
+}
+
+.branch-card.pricing-premium-2 {
+    border-left: 4px solid #ec4899;
+    /* Pink */
+    background: linear-gradient(145deg, rgba(236, 72, 153, 0.05), var(--card-bg));
+}
+
+.branch-card.pricing-not-found {
+    border-left: 4px solid #6b7280;
+    /* Gray */
+    background: linear-gradient(145deg, rgba(107, 114, 128, 0.05), var(--card-bg));
+}
+
+.branch-card.pricing-regular .pricing-badge {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.branch-card.pricing-premium .pricing-badge {
+    background: rgba(139, 92, 246, 0.1);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.branch-card.pricing-premium-2 .pricing-badge {
+    background: rgba(236, 72, 153, 0.1);
+    color: #f472b6;
+    border: 1px solid rgba(236, 72, 153, 0.2);
+}
+
+.branch-card.pricing-not-found .pricing-badge {
+    background: rgba(107, 114, 128, 0.1);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.2);
 }
 
 .branch-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: var(--spacing-md);
+    margin-bottom: 1.5rem;
 }
 
 .branch-info h4 {
@@ -888,7 +938,11 @@ body {
 }
 
 .device-status-dot.offline {
-    background: var(--text-muted);
+    background: var(--error);
+}
+
+.device-status-indicator.offline {
+    color: var(--error);
 }
 
 /* Empty State */

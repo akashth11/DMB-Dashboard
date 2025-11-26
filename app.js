@@ -594,14 +594,26 @@ function updateBranchesView() {
             `;
         };
 
+        // Determine pricing class
+        let pricingClass = 'pricing-not-found';
+        const pricing = branch.pricingVersion ? branch.pricingVersion.toLowerCase() : '';
+
+        if (pricing.includes('regular')) {
+            pricingClass = 'pricing-regular';
+        } else if (pricing.includes('premium version 2')) {
+            pricingClass = 'pricing-premium-2';
+        } else if (pricing.includes('premium')) {
+            pricingClass = 'pricing-premium';
+        }
+
         return `
-        <div class="branch-card">
+        <div class="branch-card ${pricingClass}">
             <div class="branch-header">
                 <div class="branch-info">
                     <h4>${branch.branchName}</h4>
                     <div class="branch-code">${code}</div>
                 </div>
-                <div class="pricing-badge">${branch.pricingVersion}</div>
+                <div class="pricing-badge">${branch.pricingVersion || 'Not Found'}</div>
             </div>
             <div class="branch-links">
                 <div class="branch-link">
@@ -888,7 +900,7 @@ function updateDevicesView() {
                         <span class="device-cell-value" style="font-size: 0.8125rem; color: var(--text-muted);">${density}</span>
                     </div>
                     <div class="device-cell">
-                        <span class="device-status-indicator">
+                        <span class="device-status-indicator ${online ? 'online' : 'offline'}">
                             <span class="device-status-dot ${online ? 'online' : 'offline'}"></span>
                             ${online ? 'Online' : 'Offline'}
                         </span>
