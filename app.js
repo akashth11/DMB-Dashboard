@@ -193,6 +193,35 @@ function updateConnectionStatus() {
     statusText.textContent = 'Connected';
 }
 
+// Counter Animation
+function animateCounter(element, targetValue, duration = 800) {
+    const startValue = parseInt(element.textContent) || 0;
+    const difference = targetValue - startValue;
+
+    if (difference === 0) return; // No change, skip animation
+
+    const startTime = performance.now();
+
+    function updateCounter(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function for smooth animation (easeOutCubic)
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+        const currentValue = Math.round(startValue + (difference * easeProgress));
+        element.textContent = currentValue;
+
+        if (progress < 1) {
+            requestAnimationFrame(updateCounter);
+        } else {
+            element.textContent = targetValue; // Ensure final value is exact
+        }
+    }
+
+    requestAnimationFrame(updateCounter);
+}
+
 function updateOverviewView() {
     // Update statistics
     const branchCount = Object.keys(branchesData).length;
@@ -213,10 +242,11 @@ function updateOverviewView() {
         session.status === 'background'
     ).length;
 
-    document.getElementById('stat-branches').textContent = branchCount;
-    document.getElementById('stat-devices').textContent = deviceCount;
-    document.getElementById('stat-playback').textContent = playbackCount;
-    document.getElementById('stat-turned-off').textContent = turnedOffCount;
+    // Animate the counter updates
+    animateCounter(document.getElementById('stat-branches'), branchCount);
+    animateCounter(document.getElementById('stat-devices'), deviceCount);
+    animateCounter(document.getElementById('stat-playback'), playbackCount);
+    animateCounter(document.getElementById('stat-turned-off'), turnedOffCount);
 
     // Update pricing version chart
     updatePricingChart();
@@ -957,6 +987,16 @@ function switchView(view) {
     document.getElementById('view-title').textContent = titles[view].title;
     document.getElementById('view-subtitle').textContent = titles[view].subtitle;
 
+    // Show/hide search box based on view
+    const searchBox = document.querySelector('.search-box');
+    if (searchBox) {
+        if (view === 'overview') {
+            searchBox.style.display = 'none';
+        } else {
+            searchBox.style.display = 'flex';
+        }
+    }
+
     // Update UI for the new view
     updateUI();
 }
@@ -985,6 +1025,90 @@ function setupFilters() {
     deviceStatusFilter.addEventListener('change', () => updateDevicesView());
 }
 
+// Theme Management
+function getSystemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+    const htmlElement = document.documentElement;
+
+    if (theme === 'system') {
+        const systemTheme = getSystemTheme();
+        htmlElement.setAttribute('data-theme', systemTheme);
+    } else {
+        htmlElement.setAttribute('data-theme', theme);
+    }
+
+    // Update active button
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.theme === theme) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Save preference
+    localStorage.setItem('theme-preference', theme);
+}
+
+function setupThemeToggle() {
+    const themeButtons = document.querySelectorAll('.theme-btn');
+
+    // Load saved theme or default to system
+    const savedTheme = localStorage.getItem('theme-preference') || 'system';
+    applyTheme(savedTheme);
+
+    // Add click handlers
+    themeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.theme;
+            applyTheme(theme);
+        });
+    });
+
+    // Listen for system theme changes when in system mode
+    const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    systemThemeQuery.addEventListener('change', () => {
+        const currentPreference = localStorage.getItem('theme-preference');
+        if (currentPreference === 'system') {
+            applyTheme('system');
+        }
+    });
+}
+
+// Sidebar toggle functionality
+function setupSidebarToggle() {
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (!hamburgerBtn || !sidebar || !overlay) return;
+
+    // Toggle sidebar on hamburger click
+    hamburgerBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+    });
+
+    // Close sidebar when clicking overlay
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+    });
+
+    // Close sidebar when clicking a nav item (on mobile)
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            if (window.innerWidth <= 1024) {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+            }
+        });
+    });
+}
+
 // Initialize app
 function init() {
     console.log('Initializing BTC DMB Dashboard...');
@@ -993,6 +1117,14 @@ function init() {
     setupSearch();
     setupFilters();
     setupPagination();
+    setupSidebarToggle();
+    setupThemeToggle();
+
+    // Set initial search box visibility (hide on overview)
+    const searchBox = document.querySelector('.search-box');
+    if (searchBox && currentView === 'overview') {
+        searchBox.style.display = 'none';
+    }
 
     // Connect to Firebase with Authentication
     console.log('🔐 Authenticating with Firebase...');
