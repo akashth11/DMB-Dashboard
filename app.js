@@ -690,7 +690,10 @@ function updatePlaybackView() {
         }
     });
 
-    // Update Count Elements
+    // Clear list initially
+    playbackList.innerHTML = '';
+
+    // Update Count Elements immediately
     const activeCountEl = document.getElementById('playback-count-active');
     const offlineCountEl = document.getElementById('playback-count-offline');
     if (activeCountEl) activeCountEl.textContent = totalActive;
@@ -709,16 +712,30 @@ function updatePlaybackView() {
         return;
     }
 
-    const listHtml = playbackSessions.map(([deviceId, session]) => {
-        const lastSeen = session.lastSeen || session.timestamp;
-        const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000); // 30 mins threshold for online
+    // Chunked Rendering to prevent main thread blocking
+    window.currentPlaybackRenderId = (window.currentPlaybackRenderId || 0) + 1;
+    const myRenderId = window.currentPlaybackRenderId;
 
-        // Determine display status based on online state
-        const isTurnedOff = isDeviceTurnedOff(session);
-        const displayStatus = isTurnedOff ? 'Turned Off' : (session.status || 'active');
-        const statusClass = isTurnedOff ? 'offline' : (session.status || 'active');
+    let currentIndex = 0;
+    const CHUNK_SIZE = 20;
 
-        return `
+    function renderChunk() {
+        // If a new render has started, stop this one
+        if (myRenderId !== window.currentPlaybackRenderId) return;
+
+        const chunk = playbackSessions.slice(currentIndex, currentIndex + CHUNK_SIZE);
+        if (chunk.length === 0) return;
+
+        const chunkHtml = chunk.map(([deviceId, session]) => {
+            const lastSeen = session.lastSeen || session.timestamp;
+            const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000);
+
+            // Determine display status based on online state
+            const isTurnedOff = isDeviceTurnedOff(session);
+            const displayStatus = isTurnedOff ? 'Turned Off' : (session.status || 'active');
+            const statusClass = isTurnedOff ? 'offline' : (session.status || 'active');
+
+            return `
             <div class="playback-card" onclick="showDeviceDetails('${deviceId}')" style="cursor: pointer;">
             <div class="playback-header">
                 <div class="playback-device">
@@ -762,51 +779,49 @@ function updatePlaybackView() {
                     <span class="playback-detail-label">Content URLs (${session.urls.length})</span>
                     <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
                         ${session.urls.slice(0, 3).map(url => {
-            const cleanUrl = url.trim();
-            let linkName = getLinkName(cleanUrl);
+                const cleanUrl = url.trim();
+                let linkName = getLinkName(cleanUrl);
 
-            // Handle Drive links
-            if (cleanUrl.includes('drive.google.com')) {
-                const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                if (match) {
-                    const driveId = match[1];
-                    // Use cached name if available
-                    if (driveNamesCache[driveId]) {
-                        linkName = driveNamesCache[driveId];
-                    } else {
-                        // Fetch name asynchronously (will update UI when done)
-                        fetchDriveFileName(driveId);
+                // Handle Drive links
+                if (cleanUrl.includes('drive.google.com')) {
+                    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (match) {
+                        const driveId = match[1];
+                        if (driveNamesCache[driveId]) {
+                            linkName = driveNamesCache[driveId];
+                        } else {
+                            fetchDriveFileName(driveId);
+                        }
                     }
                 }
-            }
 
-            return `<a href="${cleanUrl}" target="_blank" class="content-link" onclick="event.stopPropagation()">
+                return `<a href="${cleanUrl}" target="_blank" class="content-link" onclick="event.stopPropagation()">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                                 </svg>
                                 ${linkName}
                             </a>`;
-        }).join('')}
+            }).join('')}
                         ${session.urls.length > 3 ? `<span style="font-size: 0.75rem; color: var(--text-muted);">+${session.urls.length - 3} more...</span>` : ''}
                     </div>
                 </div>
             ` : ''
-            }
+                }
         </div>
             `;
-    }).join('');
+        }).join('');
 
-    // Use requestAnimationFrame to prevent layout thrashing
-    requestAnimationFrame(() => {
-        playbackList.innerHTML = listHtml;
+        playbackList.insertAdjacentHTML('beforeend', chunkHtml);
+        currentIndex += CHUNK_SIZE;
 
-        // Update Count Elements
-        const activeCountEl = document.getElementById('playback-count-active');
-        const offlineCountEl = document.getElementById('playback-count-offline');
-        if (activeCountEl) activeCountEl.textContent = totalActive;
-        if (offlineCountEl) offlineCountEl.textContent = totalTurnedOff;
-    });
+        if (currentIndex < playbackSessions.length) {
+            requestAnimationFrame(renderChunk);
+        }
+    }
+
+    // Start rendering
+    renderChunk();
 }
 
 function formatBytes(bytes, decimals = 2) {
