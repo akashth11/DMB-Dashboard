@@ -793,22 +793,26 @@ body {
 }
 
 /* Pricing Version Colors */
+/* Pricing Version Colors */
 .branch-card.pricing-regular {
     border-left: 4px solid #3b82f6;
     /* Blue */
-    background: linear-gradient(145deg, rgba(59, 130, 246, 0.05), var(--card-bg));
+    background: linear-gradient(145deg, rgba(59, 130, 246, 0.15), rgba(30, 41, 59, 0.7));
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1);
 }
 
 .branch-card.pricing-premium {
     border-left: 4px solid #8b5cf6;
     /* Purple */
-    background: linear-gradient(145deg, rgba(139, 92, 246, 0.05), var(--card-bg));
+    background: linear-gradient(145deg, rgba(139, 92, 246, 0.15), rgba(30, 41, 59, 0.7));
+    box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1);
 }
 
 .branch-card.pricing-premium-2 {
     border-left: 4px solid #ec4899;
     /* Pink */
-    background: linear-gradient(145deg, rgba(236, 72, 153, 0.05), var(--card-bg));
+    background: linear-gradient(145deg, rgba(236, 72, 153, 0.15), rgba(30, 41, 59, 0.7));
+    box-shadow: 0 4px 6px -1px rgba(236, 72, 153, 0.1);
 }
 
 .branch-card.pricing-not-found {
