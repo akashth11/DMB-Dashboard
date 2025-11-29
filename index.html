@@ -264,6 +264,31 @@
 
             <!-- Playback View -->
             <div id="playback-view" class="view-content">
+                <div class="view-controls">
+                    <div class="filter-group">
+                        <label for="playback-status-filter">Status:</label>
+                        <select id="playback-status-filter">
+                            <option value="all">All</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="playback-category-filter">Category:</label>
+                        <select id="playback-category-filter">
+                            <option value="all">All Categories</option>
+                            <option value="food">Food</option>
+                            <option value="beverage">Beverage</option>
+                            <option value="retail">Retail</option>
+                            <option value="promo">Promo</option>
+                        </select>
+                    </div>
+                    <div class="playback-stats">
+                        <span class="stat-badge active">Active: <strong id="playback-count-active">0</strong></span>
+                        <span class="stat-badge offline">Turned Off: <strong
+                                id="playback-count-offline">0</strong></span>
+                    </div>
+                </div>
                 <div id="playback-list" class="playback-list"></div>
             </div>
 

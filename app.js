@@ -25,7 +25,12 @@ let usersData = {};
 let currentView = 'overview';
 let currentSearchQuery = '';
 let driveNamesCache = {}; // Cache for Drive file names
-let playbackStatusFilter = 'active'; // 'active' or 'background'
+
+// Loading States
+let isBranchesLoading = true;
+let isPlaybackLoading = true;
+let isUsersLoading = true;
+
 
 
 
@@ -125,35 +130,39 @@ function setupFirebaseListeners() {
     // Branches listener
     const branchesRef = ref(database, 'branches');
     onValue(branchesRef, (snapshot) => {
-        branchesData = snapshot.val() || {};
-        console.log('📍 Branches data received:', Object.keys(branchesData).length, 'branches');
-        // console.log('Branches:', branchesData);
-        window.branchesData = branchesData; // Expose for debugging
-
-        // Prefetch Drive filenames
-        prefetchDriveFilenames(branchesData);
-
-        updateUI();
+        // Artificial delay to show loading spinner
+        setTimeout(() => {
+            isBranchesLoading = false;
+            branchesData = snapshot.val() || {};
+            console.log('📍 Branches data received:', Object.keys(branchesData).length, 'branches');
+            window.branchesData = branchesData;
+            prefetchDriveFilenames(branchesData);
+            updateUI();
+        }, 800);
     });
 
     // Playback listener
     const playbackRef = ref(database, 'playback');
     onValue(playbackRef, (snapshot) => {
-        playbackData = snapshot.val() || {};
-        console.log('▶️ Playback data received:', Object.keys(playbackData).length, 'sessions');
-        // console.log('Playback:', playbackData);
-        window.playbackData = playbackData; // Expose for debugging
-        updateUI();
+        setTimeout(() => {
+            isPlaybackLoading = false;
+            playbackData = snapshot.val() || {};
+            console.log('▶️ Playback data received:', Object.keys(playbackData).length, 'sessions');
+            window.playbackData = playbackData;
+            updateUI();
+        }, 800);
     });
 
     // Users listener
     const usersRef = ref(database, 'users');
     onValue(usersRef, (snapshot) => {
-        usersData = snapshot.val() || {};
-        console.log('📱 Users data received:', Object.keys(usersData).length, 'devices');
-        // console.log('Users:', usersData);
-        window.usersData = usersData; // Expose for debugging
-        updateUI();
+        setTimeout(() => {
+            isUsersLoading = false;
+            usersData = snapshot.val() || {};
+            console.log('📱 Users data received:', Object.keys(usersData).length, 'devices');
+            window.usersData = usersData;
+            updateUI();
+        }, 800);
     });
 }
 
@@ -273,7 +282,11 @@ function updateRecentActivity() {
         });
     });
 
-    // Device activities
+    // Playback Filters
+    document.getElementById('playback-status-filter').addEventListener('change', updatePlaybackView);
+    document.getElementById('playback-category-filter').addEventListener('change', updatePlaybackView);
+
+    // Device Filtersivities
     Object.entries(usersData).forEach(([deviceId, device]) => {
         if (device.lastSeen) {
             activities.push({
@@ -460,6 +473,16 @@ async function prefetchDriveFilenames(branches) {
 
 function updateBranchesView() {
     const branchesGrid = document.getElementById('branches-grid');
+
+    if (isBranchesLoading) {
+        branchesGrid.innerHTML = `
+            <div style="display: flex; justify-content: center; padding: 3rem; width: 100%; grid-column: 1 / -1;">
+                <div class="loading-spinner"></div>
+            </div>
+        `;
+        return;
+    }
+
     const pricingFilter = document.getElementById('pricing-filter');
 
     // Update pricing filter options
@@ -521,95 +544,113 @@ function updateBranchesView() {
 
         if (selectedPricing === 'all') return true;
         return branch.pricingVersion === selectedPricing;
-    });
+    }).map(([code, branch]) => ({ ...branch, branchCode: code })); // Convert to array of objects with code
 
     if (filteredBranches.length === 0) {
         branchesGrid.innerHTML = '<div class="empty-state"><p>No branches found</p></div>';
         return;
     }
 
-    branchesGrid.innerHTML = filteredBranches.map(([code, branch]) => {
-        // Helper to generate link HTML
-        const generateLinkHtml = (url, label) => {
-            if (!url) return '';
-            const cleanUrl = url.trim();
-            let linkName = getLinkName(cleanUrl);
+    // Generate HTML for branches
+    branchesGrid.innerHTML = filteredBranches.map(branch => {
+        // Determine pricing class
+        let pricingClass = 'pricing-not-found';
+        if (branch.pricingVersion) {
+            const version = branch.pricingVersion.toLowerCase();
+            if (version.includes('regular')) pricingClass = 'pricing-regular';
+            else if (version.includes('premium version 2')) pricingClass = 'pricing-premium-2';
+            else if (version.includes('premium')) pricingClass = 'pricing-premium';
+        }
 
-            // If it's a Drive link and we have it in cache, use the cached name
-            if (cleanUrl.includes('drive.google.com')) {
+        // Helper to create link row
+        const createLinkRow = (label, url, iconPath) => {
+            const hasUrl = url && url !== '#';
+            const cleanUrl = hasUrl ? url.trim() : '#';
+            let linkName = hasUrl ? getLinkName(cleanUrl) : 'Not Configured';
+
+            // Handle Drive links for name fetching
+            if (hasUrl && cleanUrl.includes('drive.google.com')) {
                 const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
                 if (match) {
                     const driveId = match[1];
                     if (driveNamesCache[driveId]) {
                         linkName = driveNamesCache[driveId];
                     } else {
-                        linkName = 'Loading...';
+                        fetchDriveFileName(driveId);
                     }
                 }
             }
 
             return `
-                <a href="${cleanUrl}" target="_blank" rel="noopener" title="${linkName}">
-                    ${linkName.length > 20 ? linkName.substring(0, 17) + '...' : linkName}
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-                    </svg>
+                <a href="${cleanUrl}" target="_blank" class="content-link-row ${!hasUrl ? 'empty' : ''}" ${!hasUrl ? 'onclick="return false;"' : ''}>
+                    <div class="link-info">
+                        <div class="link-icon">
+                            ${iconPath}
+                        </div>
+                        <div class="link-details">
+                            <span class="link-label">${label}</span>
+                            <span class="link-name" title="${linkName}">${linkName}</span>
+                        </div>
+                    </div>
+                    ${hasUrl ? `
+                    <div class="link-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </div>` : ''}
                 </a>
             `;
         };
 
-        // Determine pricing class
-        let pricingClass = 'pricing-not-found';
-        const pricing = branch.pricingVersion ? branch.pricingVersion.toLowerCase() : '';
-
-        if (pricing.includes('regular')) {
-            pricingClass = 'pricing-regular';
-        } else if (pricing.includes('premium version 2')) {
-            pricingClass = 'pricing-premium-2';
-        } else if (pricing.includes('premium')) {
-            pricingClass = 'pricing-premium';
-        }
+        // Icons
+        const beverageIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>`;
+        const foodIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>`;
+        const retailIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>`;
+        const contentIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
 
         return `
-        <div class="branch-card ${pricingClass}">
-            <div class="branch-header">
-                <div class="branch-info">
-                    <h4>${branch.branchName}</h4>
-                    <div class="branch-code">${code}</div>
+            <div class="branch-card">
+                <div class="branch-card-header">
+                    <div class="branch-info">
+                        <h3>${branch.branchName}</h3>
+                        <span class="branch-code">${branch.branchCode}</span>
+                    </div>
+                    <span class="pricing-badge">${branch.pricingVersion || 'Not Found'}</span>
                 </div>
-                <div class="pricing-badge">${branch.pricingVersion || 'Not Found'}</div>
-            </div>
-            <div class="branch-links">
-                <div class="branch-link">
-                    <span class="branch-link-label">Beverage Menu</span>
-                    ${generateLinkHtml(branch.beverage, 'Beverage Menu')}
-                </div>
-                <div class="branch-link">
-                    <span class="branch-link-label">Food Menu</span>
-                    ${generateLinkHtml(branch.food, 'Food Menu')}
-                </div>
-                <div class="branch-link">
-                    <span class="branch-link-label">Retail Content</span>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        ${branch.retail ? branch.retail.split(',').map((url) => generateLinkHtml(url, 'Retail Content')).join('') : '<span>N/A</span>'}
+                <div class="branch-card-body">
+                    <div class="content-group">
+                        ${createLinkRow('Beverage Menu', branch.beverage, beverageIcon)}
+                        ${createLinkRow('Food Menu', branch.food, foodIcon)}
+                        ${createLinkRow('Retail', branch.retail, retailIcon)}
                     </div>
                 </div>
             </div>
-        </div>
-    `}).join('');
+        `;
+    }).join('');
 }
 
 
 
 function updatePlaybackView() {
     const playbackList = document.getElementById('playback-list');
-    const playbackSessions = Object.entries(playbackData).filter(([deviceId, session]) => {
-        // Status filter based on playbackStatusFilter
-        if (playbackStatusFilter === 'active') {
-            if (session.status !== 'playing' && session.status !== 'active') return false;
-        } else if (playbackStatusFilter === 'background') {
-            if (session.status !== 'background') return false;
+
+    if (isPlaybackLoading) {
+        playbackList.innerHTML = `
+            < div style = "display: flex; justify-content: center; padding: 3rem;" >
+                <div class="loading-spinner"></div>
+            </div >
+            `;
+        return;
+    }
+
+    const statusFilter = document.getElementById('playback-status-filter').value;
+    const categoryFilter = document.getElementById('playback-category-filter').value;
+
+    // 1. First apply Search and Category filters to get the "Context"
+    const contextSessions = Object.entries(playbackData).filter(([deviceId, session]) => {
+        // Category Filter
+        if (categoryFilter !== 'all') {
+            if (!session.category || session.category.toLowerCase() !== categoryFilter) return false;
         }
 
         // Search filter
@@ -626,20 +667,45 @@ function updatePlaybackView() {
         return true;
     });
 
-    if (playbackSessions.length === 0) {
-        const emptyMessage = playbackStatusFilter === 'background'
-            ? { title: 'No Turned Off Devices', message: 'There are currently no devices with background status' }
-            : { title: 'No Active Playback', message: 'There are currently no active playback sessions' };
+    // 3. Finally apply Status Filter for the list display
+    const playbackSessions = contextSessions.filter(([deviceId, session]) => {
+        const isTurnedOff = isDeviceTurnedOff(session);
 
+        // Status Filter
+        if (statusFilter === 'online' && isTurnedOff) return false;
+        if (statusFilter === 'offline' && !isTurnedOff) return false;
+
+        return true;
+    });
+
+    // 4. Calculate Counts based on the FINAL list
+    let totalActive = 0;
+    let totalTurnedOff = 0;
+
+    playbackSessions.forEach(([_, session]) => {
+        if (isDeviceTurnedOff(session)) {
+            totalTurnedOff++;
+        } else {
+            totalActive++;
+        }
+    });
+
+    // Update Count Elements
+    const activeCountEl = document.getElementById('playback-count-active');
+    const offlineCountEl = document.getElementById('playback-count-offline');
+    if (activeCountEl) activeCountEl.textContent = totalActive;
+    if (offlineCountEl) offlineCountEl.textContent = totalTurnedOff;
+
+    if (playbackSessions.length === 0) {
         playbackList.innerHTML = `
             <div class="empty-state">
                 <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
                 </svg>
-                <h3>${emptyMessage.title}</h3>
-                <p>${emptyMessage.message}</p>
+                <h3>No Playback Sessions Found</h3>
+                <p>Try adjusting your filters or search query</p>
             </div>
-        `;
+            `;
         return;
     }
 
@@ -648,16 +714,12 @@ function updatePlaybackView() {
         const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000); // 30 mins threshold for online
 
         // Determine display status based on online state
-        let displayStatus = session.status || 'active';
-        let statusClass = session.status || 'active';
-
-        if (!isOnline) {
-            displayStatus = 'Offline';
-            statusClass = 'offline';
-        }
+        const isTurnedOff = isDeviceTurnedOff(session);
+        const displayStatus = isTurnedOff ? 'Turned Off' : (session.status || 'active');
+        const statusClass = isTurnedOff ? 'offline' : (session.status || 'active');
 
         return `
-        <div class="playback-card" onclick="showDeviceDetails('${deviceId}')" style="cursor: pointer;">
+            <div class="playback-card" onclick="showDeviceDetails('${deviceId}')" style="cursor: pointer;">
             <div class="playback-header">
                 <div class="playback-device">
                     <h4>${session.branchName}</h4>
@@ -731,8 +793,8 @@ function updatePlaybackView() {
                 </div>
             ` : ''
             }
-        </div>
-    `;
+        </div >
+            `;
     }).join('');
 
     playbackList.innerHTML = listHtml;
@@ -744,11 +806,21 @@ function formatBytes(bytes, decimals = 2) {
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]} `;
 }
 
 function updateDevicesView() {
     const devicesTable = document.getElementById('devices-table');
+
+    if (isUsersLoading) {
+        devicesTable.innerHTML = `
+            < div style = "display: flex; justify-content: center; padding: 3rem;" >
+                <div class="loading-spinner"></div>
+            </div >
+            `;
+        return;
+    }
+
     const typeFilter = document.getElementById('device-type-filter');
     const statusFilter = document.getElementById('device-status-filter');
 
@@ -790,7 +862,7 @@ function updateDevicesView() {
             <div>Screen</div>
             <div>Status</div>
         </div>
-        ${filteredDevices.map(([deviceId, device]) => {
+            ${filteredDevices.map(([deviceId, device]) => {
         // Use playback data for lastSeen if available
         const playbackSession = playbackData[deviceId];
         let lastSeen = device.lastSeen;
@@ -850,7 +922,7 @@ function updateDevicesView() {
             `;
     }).join('')
         }
-    `;
+        `;
 
     devicesTable.innerHTML = tableHtml;
 }
@@ -870,10 +942,7 @@ function setupNavigation() {
 function switchView(view) {
     currentView = view;
 
-    // Reset playback filter to 'active' when navigating to playback from sidebar
-    if (view === 'playback') {
-        playbackStatusFilter = 'active';
-    }
+
 
     // Update nav items
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -890,10 +959,8 @@ function switchView(view) {
         overview: { title: 'Overview', subtitle: 'Real-time dashboard for Blue Tokai Coffee signage system' },
         branches: { title: 'Branches', subtitle: 'Manage cafe locations and menu configurations' },
         playback: {
-            title: playbackStatusFilter === 'background' ? 'Devices Turned Off' : 'Active Playback',
-            subtitle: playbackStatusFilter === 'background'
-                ? 'Devices with background status'
-                : 'Monitor content being displayed on devices'
+            title: 'Active Playback',
+            subtitle: 'Monitor content being displayed on devices'
         },
         devices: { title: 'Devices', subtitle: 'View and manage registered devices' }
     };
@@ -1032,10 +1099,16 @@ function setupStatCardClicks() {
             const action = card.dataset.action;
 
             if (action === 'show-turned-off') {
-                // Set filter to background and switch to playback view
-                playbackStatusFilter = 'background';
-
+                // Switch to playback view and set filter to offline
                 switchView('playback');
+                // Wait for view switch then set filter
+                setTimeout(() => {
+                    const statusFilter = document.getElementById('playback-status-filter');
+                    if (statusFilter) {
+                        statusFilter.value = 'offline';
+                        updatePlaybackView();
+                    }
+                }, 100);
             }
         });
     });
@@ -1064,7 +1137,9 @@ function init() {
     signInAnonymously(auth)
         .then(() => {
             console.log('✅ Signed in anonymously');
+            console.log('✅ Signed in anonymously');
             setupFirebaseListeners();
+            updateUI(); // Render initial loading state
 
             // Hide loading screen and show app
             setTimeout(() => {
@@ -1076,7 +1151,7 @@ function init() {
             console.error('❌ Error signing in:', error);
             const loadingText = document.querySelector('#loading-screen p');
             if (loadingText) {
-                loadingText.textContent = `Error: ${error.message}`;
+                loadingText.textContent = `Error: ${error.message} `;
                 loadingText.style.color = 'var(--error)';
             }
         });
@@ -1084,6 +1159,15 @@ function init() {
 
 // Start the app
 init();
+
+// Helper to check if device is turned off
+function isDeviceTurnedOff(session) {
+    const lastActive = session.lastSeen || session.timestamp;
+    if (!lastActive) return true; // If no time, assume turned off? Or active? User said "if last seen not present the timestamp value should be more than 45 minutes"
+    const now = Date.now();
+    const TURNED_OFF_THRESHOLD = 45 * 60 * 1000; // 45 minutes
+    return (now - lastActive) > TURNED_OFF_THRESHOLD;
+}
 
 // Modal Functions
 window.showDeviceDetails = function (deviceId) {
@@ -1095,19 +1179,20 @@ window.showDeviceDetails = function (deviceId) {
     if (!session) return;
 
     const lastSeen = session.lastSeen || session.timestamp;
-    const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000); // 30 mins threshold for online
+    // Use the same 45 min threshold for "Online Status" consistency, or keep 30? 
+    // User said "online status is correct" (Offline). 
+    // Let's use the isDeviceTurnedOff logic to determine the main Status.
 
-    // Determine display status based on online state
-    let displayStatus = session.status || 'active';
-    let statusClass = session.status || 'active';
+    const isTurnedOff = isDeviceTurnedOff(session);
+    const displayStatus = isTurnedOff ? 'Turned Off' : (session.status || 'active');
+    const statusClass = isTurnedOff ? 'offline' : (session.status || 'active'); // Use 'offline' class for red/gray styling
 
-    if (!isOnline) {
-        displayStatus = 'Offline';
-        statusClass = 'offline';
-    }
+    // For Online Status row, we can keep the existing logic or align it.
+    // Let's align it to the "Turned Off" concept for consistency.
+    const isOnline = !isTurnedOff;
 
     modalBody.innerHTML = `
-        <div class="modal-section">
+            < div class="modal-section" >
             <div class="modal-section-title">Device Information</div>
             <div class="detail-grid">
                 <div class="detail-item">
@@ -1131,7 +1216,7 @@ window.showDeviceDetails = function (deviceId) {
                     </span>
                 </div>
             </div>
-        </div>
+        </div >
 
         <div class="modal-section">
             <div class="modal-section-title">Technical Details</div>
@@ -1184,7 +1269,7 @@ window.showDeviceDetails = function (deviceId) {
                 </div>
             </div>
         </div>
-    `;
+        `;
 
     modal.classList.add('active');
 };
