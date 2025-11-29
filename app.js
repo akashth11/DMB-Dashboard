@@ -1192,9 +1192,9 @@ window.showDeviceDetails = function (deviceId) {
     const isOnline = !isTurnedOff;
 
     modalBody.innerHTML = `
-            < div class="modal-section" >
-            <div class="modal-section-title">Device Information</div>
-            <div class="detail-grid">
+        <div class="modal-section">
+            <h3 class="modal-section-title">Device Information</h3>
+            <div class="modal-grid">
                 <div class="detail-item">
                     <span class="detail-label">Device ID</span>
                     <span class="detail-value code">${deviceId}</span>
