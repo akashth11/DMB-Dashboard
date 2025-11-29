@@ -1,7 +1,7 @@
 // Firebase Configuration
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -1137,125 +1137,7 @@ function setupStatCardClicks() {
         });
     });
 }
-// Authentication Logic
-function handleLogin() {
-    const emailInput = document.getElementById('email');
-    const email = emailInput.value;
-    const loginMessage = document.getElementById('login-message');
-    const loginBtn = document.getElementById('login-btn');
 
-    if (!email) {
-        loginMessage.textContent = 'Please enter your email address.';
-        loginMessage.className = 'login-message error';
-        return;
-    }
-
-    /* Domain restriction removed for testing
-    if (!email.endsWith('@bluetokaicoffee.com')) {
-        loginMessage.textContent = 'Access restricted to @bluetokaicoffee.com emails.';
-        loginMessage.className = 'login-message error';
-        return;
-    }
-    */
-
-    loginBtn.disabled = true;
-    loginBtn.innerHTML = '<span>Sending...</span>';
-
-    const actionCodeSettings = {
-        url: window.location.href,
-        handleCodeInApp: true
-    };
-
-    sendSignInLinkToEmail(auth, email, actionCodeSettings)
-        .then(() => {
-            window.localStorage.setItem('emailForSignIn', email);
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('login-success').style.display = 'block';
-            document.getElementById('sent-email').textContent = email;
-        })
-        .catch((error) => {
-            console.error('Error sending email link:', error);
-            loginMessage.textContent = error.message;
-            loginMessage.className = 'login-message error';
-            loginBtn.disabled = false;
-            loginBtn.innerHTML = `<span>Send Login Link</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>`;
-        });
-}
-
-function handleEmailLinkSignIn() {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-        let email = window.localStorage.getItem('emailForSignIn');
-        if (!email) {
-            email = window.prompt('Please provide your email for confirmation');
-        }
-
-        signInWithEmailLink(auth, email, window.location.href)
-            .then((result) => {
-                window.localStorage.removeItem('emailForSignIn');
-                // Clear URL parameters
-                window.history.replaceState({}, document.title, window.location.pathname);
-            })
-            .catch((error) => {
-                console.error('Error signing in with email link:', error);
-                alert('Error signing in: ' + error.message);
-            });
-    }
-}
-
-function checkAuthStatus() {
-    onAuthStateChanged(auth, (user) => {
-        const loginOverlay = document.getElementById('login-overlay');
-        const app = document.getElementById('app');
-        const loadingScreen = document.getElementById('loading-screen');
-
-        if (user) {
-            // User is signed in
-            // Domain restriction removed for testing
-            // if (user.email && user.email.endsWith('@bluetokaicoffee.com')) {
-            if (user.email) {
-                console.log('✅ User signed in:', user.email);
-                loginOverlay.style.display = 'none';
-                loadingScreen.style.display = 'flex'; // Show loading while fetching data
-
-                setupFirebaseListeners();
-
-                // Hide loading screen after a delay (simulating data fetch or waiting for listeners)
-                // In a real app, you'd wait for the first data snapshot
-                setTimeout(() => {
-                    loadingScreen.style.display = 'none';
-                    app.style.display = 'grid';
-                }, 1500);
-
-            } else {
-                // Invalid domain (shouldn't happen with email link if we restrict sending, but good safety)
-                console.error('❌ Unauthorized email domain');
-                signOut(auth);
-                loginOverlay.style.display = 'flex';
-            }
-        } else {
-            // User is signed out
-            console.log('🔒 User signed out');
-            loginOverlay.style.display = 'flex';
-            app.style.display = 'none';
-            loadingScreen.style.display = 'none';
-        }
-    });
-}
-
-function handleLogout() {
-    signOut(auth).then(() => {
-        console.log('Signed out');
-        window.location.reload();
-    }).catch((error) => {
-        console.error('Sign out error', error);
-    });
-}
-
-// Initialize app
 // Initialize app
 function init() {
     console.log('Initializing BTC DMB Dashboard...');
@@ -1274,32 +1156,29 @@ function init() {
         searchBox.style.display = 'none';
     }
 
-    // Login Event Listeners
-    const loginBtn = document.getElementById('login-btn');
-    if (loginBtn) {
-        loginBtn.addEventListener('click', handleLogin);
-    }
+    // Connect to Firebase with Authentication
+    console.log('🔐 Authenticating with Firebase...');
+    signInAnonymously(auth)
+        .then(() => {
+            console.log('✅ Signed in anonymously');
+            console.log('✅ Signed in anonymously');
+            setupFirebaseListeners();
+            updateUI(); // Render initial loading state
 
-    const backToLoginBtn = document.getElementById('back-to-login');
-    if (backToLoginBtn) {
-        backToLoginBtn.addEventListener('click', () => {
-            document.getElementById('login-success').style.display = 'none';
-            document.getElementById('login-form').style.display = 'block';
-            document.getElementById('login-btn').disabled = false;
-            document.getElementById('login-btn').innerHTML = `<span>Send Login Link</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>`;
-            document.getElementById('login-message').textContent = '';
+            // Hide loading screen and show app
+            setTimeout(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('app').style.display = 'grid';
+            }, 1000);
+        })
+        .catch((error) => {
+            console.error('❌ Error signing in:', error);
+            const loadingText = document.querySelector('#loading-screen p');
+            if (loadingText) {
+                loadingText.textContent = `Error: ${error.message} `;
+                loadingText.style.color = 'var(--error)';
+            }
         });
-    }
-
-    // Check for email link sign-in on load
-    handleEmailLinkSignIn();
-
-    // Start Auth Listener
-    checkAuthStatus();
 }
 
 // Start the app
