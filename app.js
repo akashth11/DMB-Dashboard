@@ -636,9 +636,9 @@ function updatePlaybackView() {
 
     if (isPlaybackLoading) {
         playbackList.innerHTML = `
-            < div style = "display: flex; justify-content: center; padding: 3rem;" >
+            <div style="display: flex; justify-content: center; padding: 3rem;">
                 <div class="loading-spinner"></div>
-            </div >
+            </div>
             `;
         return;
     }
@@ -793,11 +793,20 @@ function updatePlaybackView() {
                 </div>
             ` : ''
             }
-        </div >
+        </div>
             `;
     }).join('');
 
-    playbackList.innerHTML = listHtml;
+    // Use requestAnimationFrame to prevent layout thrashing
+    requestAnimationFrame(() => {
+        playbackList.innerHTML = listHtml;
+
+        // Update Count Elements
+        const activeCountEl = document.getElementById('playback-count-active');
+        const offlineCountEl = document.getElementById('playback-count-offline');
+        if (activeCountEl) activeCountEl.textContent = totalActive;
+        if (offlineCountEl) offlineCountEl.textContent = totalTurnedOff;
+    });
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -814,9 +823,9 @@ function updateDevicesView() {
 
     if (isUsersLoading) {
         devicesTable.innerHTML = `
-            < div style = "display: flex; justify-content: center; padding: 3rem;" >
+            <div style="display: flex; justify-content: center; padding: 3rem;">
                 <div class="loading-spinner"></div>
-            </div >
+            </div>
             `;
         return;
     }
