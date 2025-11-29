@@ -25,11 +25,9 @@ let usersData = {};
 let currentView = 'overview';
 let currentSearchQuery = '';
 let driveNamesCache = {}; // Cache for Drive file names
+let playbackStatusFilter = 'active'; // 'active' or 'background'
 
-// Pagination State
-let currentPlaybackPage = 1;
-let currentDevicesPage = 1;
-const itemsPerPage = 10;
+
 
 // Utility Functions
 function formatTimestamp(timestamp) {
@@ -238,9 +236,13 @@ function updateOverviewView() {
         return false;
     }).length;
 
-    const turnedOffCount = Object.values(playbackData).filter(session =>
-        session.status === 'background'
-    ).length;
+    const turnedOffCount = Object.values(playbackData).filter(session => {
+        const lastActive = session.lastSeen || session.timestamp;
+        if (!lastActive) return false;
+        // 45 minutes in milliseconds
+        const TURNED_OFF_THRESHOLD = 45 * 60 * 1000;
+        return (now - lastActive) > TURNED_OFF_THRESHOLD;
+    }).length;
 
     // Animate the counter updates
     animateCounter(document.getElementById('stat-branches'), branchCount);
@@ -248,81 +250,11 @@ function updateOverviewView() {
     animateCounter(document.getElementById('stat-playback'), playbackCount);
     animateCounter(document.getElementById('stat-turned-off'), turnedOffCount);
 
-    // Update pricing version chart
-    updatePricingChart();
-
-    // Update device types chart
-    updateDeviceTypesChart();
-
     // Update recent activity
     updateRecentActivity();
 }
 
-function updatePricingChart() {
-    const pricingCounts = {};
 
-    Object.values(branchesData).forEach(branch => {
-        const version = branch.pricingVersion || 'Unknown';
-        pricingCounts[version] = (pricingCounts[version] || 0) + 1;
-    });
-
-    const chartContainer = document.getElementById('pricing-chart');
-    const total = Object.values(pricingCounts).reduce((a, b) => a + b, 0);
-
-    if (total === 0) {
-        chartContainer.innerHTML = '<div class="empty-state"><p>No pricing data available</p></div>';
-        return;
-    }
-
-    chartContainer.innerHTML = Object.entries(pricingCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([version, count]) => {
-            const percentage = (count / total * 100).toFixed(1);
-            return `
-                <div class="chart-bar">
-                    <div class="chart-label">${version}</div>
-                    <div class="chart-bar-container">
-                        <div class="chart-bar-fill" style="width: ${percentage}%">
-                            <span class="chart-value">${count}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-}
-
-function updateDeviceTypesChart() {
-    const typeCounts = {};
-
-    Object.values(usersData).forEach(device => {
-        const type = device.deviceType || 'Unknown';
-        typeCounts[type] = (typeCounts[type] || 0) + 1;
-    });
-
-    const chartContainer = document.getElementById('device-types-chart');
-    const total = Object.values(typeCounts).reduce((a, b) => a + b, 0);
-
-    if (total === 0) {
-        chartContainer.innerHTML = '<div class="empty-state"><p>No device data available</p></div>';
-        return;
-    }
-
-    chartContainer.innerHTML = Object.entries(typeCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([type, count]) => {
-            const percentage = (count / total * 100).toFixed(1);
-            return `
-                <div class="chart-bar">
-                    <div class="chart-label">${type}</div>
-                    <div class="chart-bar-container">
-                        <div class="chart-bar-fill" style="width: ${percentage}%">
-                            <span class="chart-value">${count}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-}
 
 function updateRecentActivity() {
     const activityContainer = document.getElementById('recent-activity');
@@ -550,6 +482,9 @@ function updateBranchesView() {
     console.log('Filtering branches. Query:', currentSearchQuery, 'Pricing:', selectedPricing);
 
     const filteredBranches = Object.entries(branchesData).filter(([code, branch]) => {
+        // Filter out invalid entries (e.g. metadata)
+        if (!branch || typeof branch !== 'object' || !branch.branchName) return false;
+
         // Search filter
         if (currentSearchQuery) {
             const searchLower = currentSearchQuery.toLowerCase();
@@ -665,57 +600,17 @@ function updateBranchesView() {
     `}).join('');
 }
 
-// Helper to render pagination controls
-function renderPaginationControls(currentPage, totalPages, viewName) {
-    if (totalPages <= 1) return '';
 
-    return `
-        <div class="pagination-container">
-            <button class="pagination-btn" 
-                data-view="${viewName}" data-page="${currentPage - 1}"
-                ${currentPage === 1 ? 'disabled' : ''}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 18l-6-6 6-6"/>
-                </svg>
-                Previous
-            </button>
-            <span class="pagination-info">
-                Page ${currentPage} of ${totalPages}
-            </span>
-            <button class="pagination-btn" 
-                data-view="${viewName}" data-page="${currentPage + 1}"
-                ${currentPage === totalPages ? 'disabled' : ''}>
-                Next
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </button>
-        </div>
-    `;
-}
-
-function setupPagination() {
-    document.addEventListener('click', function (e) {
-        const target = e.target.closest('.pagination-btn');
-        if (target && !target.disabled) {
-            const viewName = target.dataset.view;
-            const newPage = parseInt(target.dataset.page, 10);
-            if (viewName === 'playback') {
-                currentPlaybackPage = newPage;
-                updatePlaybackView();
-            } else if (viewName === 'devices') {
-                currentDevicesPage = newPage;
-                updateDevicesView();
-            }
-        }
-    });
-}
 
 function updatePlaybackView() {
     const playbackList = document.getElementById('playback-list');
     const playbackSessions = Object.entries(playbackData).filter(([deviceId, session]) => {
-        // Status filter
-        if (session.status !== 'playing' && session.status !== 'active') return false;
+        // Status filter based on playbackStatusFilter
+        if (playbackStatusFilter === 'active') {
+            if (session.status !== 'playing' && session.status !== 'active') return false;
+        } else if (playbackStatusFilter === 'background') {
+            if (session.status !== 'background') return false;
+        }
 
         // Search filter
         if (currentSearchQuery) {
@@ -732,35 +627,44 @@ function updatePlaybackView() {
     });
 
     if (playbackSessions.length === 0) {
+        const emptyMessage = playbackStatusFilter === 'background'
+            ? { title: 'No Turned Off Devices', message: 'There are currently no devices with background status' }
+            : { title: 'No Active Playback', message: 'There are currently no active playback sessions' };
+
         playbackList.innerHTML = `
             <div class="empty-state">
                 <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
                 </svg>
-                <h3>No Active Playback</h3>
-                <p>There are currently no active playback sessions</p>
+                <h3>${emptyMessage.title}</h3>
+                <p>${emptyMessage.message}</p>
             </div>
         `;
         return;
     }
 
-    // Pagination Logic
-    const totalPages = Math.ceil(playbackSessions.length / itemsPerPage);
-    if (currentPlaybackPage > totalPages) currentPlaybackPage = 1;
+    const listHtml = playbackSessions.map(([deviceId, session]) => {
+        const lastSeen = session.lastSeen || session.timestamp;
+        const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000); // 30 mins threshold for online
 
-    const startIndex = (currentPlaybackPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedSessions = playbackSessions.slice(startIndex, endIndex);
+        // Determine display status based on online state
+        let displayStatus = session.status || 'active';
+        let statusClass = session.status || 'active';
 
-    const listHtml = paginatedSessions.map(([deviceId, session]) => `
-        <div class="playback-card">
+        if (!isOnline) {
+            displayStatus = 'Offline';
+            statusClass = 'offline';
+        }
+
+        return `
+        <div class="playback-card" onclick="showDeviceDetails('${deviceId}')" style="cursor: pointer;">
             <div class="playback-header">
                 <div class="playback-device">
                     <h4>${session.branchName}</h4>
                     <span class="device-id">${deviceId}</span>
                 </div>
                 <div class="playback-status">
-                    <span class="status-badge ${session.status || 'active'}">${session.status || 'active'}</span>
+                    <span class="status-badge ${statusClass}">${displayStatus}</span>
                 </div>
             </div>
             <div class="playback-details">
@@ -796,34 +700,42 @@ function updatePlaybackView() {
                     <span class="playback-detail-label">Content URLs (${session.urls.length})</span>
                     <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
                         ${session.urls.slice(0, 3).map(url => {
-        const cleanUrl = url.trim();
-        let linkName = getLinkName(cleanUrl);
+            const cleanUrl = url.trim();
+            let linkName = getLinkName(cleanUrl);
 
-        // Handle Drive links
-        if (cleanUrl.includes('drive.google.com')) {
-            const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-            if (match) {
-                const driveId = match[1];
-                if (driveNamesCache[driveId]) {
-                    linkName = driveNamesCache[driveId];
-                } else {
-                    linkName = 'Loading...';
-                    fetchDriveFileName(driveId);
+            // Handle Drive links
+            if (cleanUrl.includes('drive.google.com')) {
+                const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (match) {
+                    const driveId = match[1];
+                    // Use cached name if available
+                    if (driveNamesCache[driveId]) {
+                        linkName = driveNamesCache[driveId];
+                    } else {
+                        // Fetch name asynchronously (will update UI when done)
+                        fetchDriveFileName(driveId);
+                    }
                 }
             }
-        }
 
-        return `<a href="${cleanUrl}" target="_blank" rel="noopener" class="playback-detail-value" style="font-size: 0.8125rem; color: var(--accent-color); text-decoration: none; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${linkName}">${linkName}</a>`;
-    }).join('')}
-                        ${session.urls.length > 3 ? `<span class="playback-detail-value" style="font-size: 0.8125rem; color: var(--text-muted);">+${session.urls.length - 3} more</span>` : ''}
+            return `<a href="${cleanUrl}" target="_blank" class="content-link" onclick="event.stopPropagation()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                </svg>
+                                ${linkName}
+                            </a>`;
+        }).join('')}
+                        ${session.urls.length > 3 ? `<span style="font-size: 0.75rem; color: var(--text-muted);">+${session.urls.length - 3} more...</span>` : ''}
                     </div>
                 </div>
             ` : ''
-        }
+            }
         </div>
-    `).join('');
+    `;
+    }).join('');
 
-    playbackList.innerHTML = listHtml + renderPaginationControls(currentPlaybackPage, totalPages, 'playback');
+    playbackList.innerHTML = listHtml;
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -869,14 +781,6 @@ function updateDevicesView() {
         return;
     }
 
-    // Pagination Logic
-    const totalPages = Math.ceil(filteredDevices.length / itemsPerPage);
-    if (currentDevicesPage > totalPages) currentDevicesPage = 1;
-
-    const startIndex = (currentDevicesPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedDevices = filteredDevices.slice(startIndex, endIndex);
-
     const tableHtml = `
         <div class="device-row header">
             <div>Device</div>
@@ -886,7 +790,7 @@ function updateDevicesView() {
             <div>Screen</div>
             <div>Status</div>
         </div>
-        ${paginatedDevices.map(([deviceId, device]) => {
+        ${filteredDevices.map(([deviceId, device]) => {
         // Use playback data for lastSeen if available
         const playbackSession = playbackData[deviceId];
         let lastSeen = device.lastSeen;
@@ -948,7 +852,7 @@ function updateDevicesView() {
         }
     `;
 
-    devicesTable.innerHTML = tableHtml + renderPaginationControls(currentDevicesPage, totalPages, 'devices');
+    devicesTable.innerHTML = tableHtml;
 }
 
 // Navigation
@@ -966,6 +870,11 @@ function setupNavigation() {
 function switchView(view) {
     currentView = view;
 
+    // Reset playback filter to 'active' when navigating to playback from sidebar
+    if (view === 'playback') {
+        playbackStatusFilter = 'active';
+    }
+
     // Update nav items
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.view === view);
@@ -980,7 +889,12 @@ function switchView(view) {
     const titles = {
         overview: { title: 'Overview', subtitle: 'Real-time dashboard for Blue Tokai Coffee signage system' },
         branches: { title: 'Branches', subtitle: 'Manage cafe locations and menu configurations' },
-        playback: { title: 'Active Playback', subtitle: 'Monitor content being displayed on devices' },
+        playback: {
+            title: playbackStatusFilter === 'background' ? 'Devices Turned Off' : 'Active Playback',
+            subtitle: playbackStatusFilter === 'background'
+                ? 'Devices with background status'
+                : 'Monitor content being displayed on devices'
+        },
         devices: { title: 'Devices', subtitle: 'View and manage registered devices' }
     };
 
@@ -1109,6 +1023,24 @@ function setupSidebarToggle() {
     });
 }
 
+// Stat Card Click Handlers
+function setupStatCardClicks() {
+    const statCards = document.querySelectorAll('.clickable-stat');
+
+    statCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const action = card.dataset.action;
+
+            if (action === 'show-turned-off') {
+                // Set filter to background and switch to playback view
+                playbackStatusFilter = 'background';
+
+                switchView('playback');
+            }
+        });
+    });
+}
+
 // Initialize app
 function init() {
     console.log('Initializing BTC DMB Dashboard...');
@@ -1116,9 +1048,10 @@ function init() {
     setupNavigation();
     setupSearch();
     setupFilters();
-    setupPagination();
+
     setupSidebarToggle();
     setupThemeToggle();
+    setupStatCardClicks();
 
     // Set initial search box visibility (hide on overview)
     const searchBox = document.querySelector('.search-box');
@@ -1151,3 +1084,122 @@ function init() {
 
 // Start the app
 init();
+
+// Modal Functions
+window.showDeviceDetails = function (deviceId) {
+    const session = playbackData[deviceId];
+    const user = usersData[deviceId] || {};
+    const modal = document.getElementById('device-modal');
+    const modalBody = document.getElementById('modal-body');
+
+    if (!session) return;
+
+    const lastSeen = session.lastSeen || session.timestamp;
+    const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000); // 30 mins threshold for online
+
+    // Determine display status based on online state
+    let displayStatus = session.status || 'active';
+    let statusClass = session.status || 'active';
+
+    if (!isOnline) {
+        displayStatus = 'Offline';
+        statusClass = 'offline';
+    }
+
+    modalBody.innerHTML = `
+        <div class="modal-section">
+            <div class="modal-section-title">Device Information</div>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <span class="detail-label">Device ID</span>
+                    <span class="detail-value code">${deviceId}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Branch Name</span>
+                    <span class="detail-value">${session.branchName || 'N/A'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        <span class="status-badge ${statusClass}">${displayStatus}</span>
+                    </span>
+                </div>
+                 <div class="detail-item">
+                    <span class="detail-label">Online Status</span>
+                    <span class="detail-value" style="color: ${isOnline ? 'var(--success)' : 'var(--error)'}">
+                        ${isOnline ? 'Online' : 'Offline'}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-section">
+            <div class="modal-section-title">Technical Details</div>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <span class="detail-label">App Version</span>
+                    <span class="detail-value">${session.appVersion || user.appVersion || 'N/A'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Android Version</span>
+                    <span class="detail-value">${user.androidVersion || 'N/A'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Device Model</span>
+                    <span class="detail-value">${user.deviceModel || 'N/A'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Device Brand</span>
+                    <span class="detail-value">${user.deviceBrand || 'N/A'}</span>
+                </div>
+                 <div class="detail-item">
+                    <span class="detail-label">IP Address</span>
+                    <span class="detail-value">${user.ipAddress || 'N/A'}</span>
+                </div>
+                 <div class="detail-item">
+                    <span class="detail-label">WiFi SSID</span>
+                    <span class="detail-value">${user.wifiSsid || 'N/A'}</span>
+                </div>
+                 <div class="detail-item">
+                    <span class="detail-label">Storage Free</span>
+                    <span class="detail-value">${user.storageFree ? formatBytes(user.storageFree) : 'N/A'}</span>
+                </div>
+            </div>
+        </div>
+
+         <div class="modal-section">
+            <div class="modal-section-title">Timestamps</div>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <span class="detail-label">Last Seen</span>
+                    <span class="detail-value">${formatTimestamp(lastSeen)}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Started At</span>
+                    <span class="detail-value">${formatTimestamp(session.timestamp)}</span>
+                </div>
+                 <div class="detail-item">
+                    <span class="detail-label">Created At</span>
+                    <span class="detail-value">${formatTimestamp(user.createdAt)}</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add('active');
+};
+
+window.closeModal = function () {
+    const modal = document.getElementById('device-modal');
+    modal.classList.remove('active');
+};
+
+// Close modal on outside click
+const deviceModal = document.getElementById('device-modal');
+if (deviceModal) {
+    deviceModal.addEventListener('click', (e) => {
+        if (e.target.id === 'device-modal') {
+            closeModal();
+        }
+    });
+}

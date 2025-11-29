@@ -222,7 +222,7 @@
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card clickable-stat" data-action="show-turned-off">
                         <div class="stat-icon online-icon">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -237,25 +237,7 @@
                     </div>
                 </div>
 
-                <div class="content-grid">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Pricing Version Distribution</h3>
-                        </div>
-                        <div class="card-body">
-                            <div id="pricing-chart" class="chart-container"></div>
-                        </div>
-                    </div>
 
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Device Types</h3>
-                        </div>
-                        <div class="card-body">
-                            <div id="device-types-chart" class="chart-container"></div>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="card">
                     <div class="card-header">
@@ -309,6 +291,24 @@
                 <div id="devices-table" class="devices-table"></div>
             </div>
         </main>
+    </div>
+
+    <!-- Device Details Modal -->
+    <div id="device-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Device Details</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
