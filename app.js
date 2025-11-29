@@ -602,6 +602,66 @@ function updateBranchesView() {
             `;
         };
 
+        // Helper to create multi-link row (for Retail)
+        const createMultiLinkRow = (label, urls, iconPath) => {
+            // Filter valid URLs
+            const validUrls = urls.map(u => u.trim()).filter(u => u);
+
+            if (validUrls.length === 0) {
+                return createLinkRow(label, '', iconPath);
+            }
+
+            // If only one URL, use standard row
+            if (validUrls.length === 1) {
+                return createLinkRow(label, validUrls[0], iconPath);
+            }
+
+            // Multiple URLs - Create grouped view
+            const linksHtml = validUrls.map(url => {
+                let linkName = getLinkName(url);
+
+                // Handle Drive links for name fetching
+                if (url.includes('drive.google.com')) {
+                    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (match) {
+                        const driveId = match[1];
+                        if (driveNamesCache[driveId]) {
+                            linkName = driveNamesCache[driveId];
+                        } else {
+                            fetchDriveFileName(driveId);
+                        }
+                    }
+                }
+
+                return `
+                    <a href="${url}" target="_blank" class="retail-link-item">
+                        <span class="link-name" title="${linkName}">${linkName}</span>
+                        <div class="link-arrow">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+
+            return `
+                <div class="content-multi-link-group">
+                    <div class="multi-link-header">
+                        <div class="link-icon">
+                            ${iconPath}
+                        </div>
+                        <div class="link-details">
+                            <span class="link-label">${label}</span>
+                        </div>
+                    </div>
+                    <div class="multi-link-list">
+                        ${linksHtml}
+                    </div>
+                </div>
+            `;
+        };
+
         // Icons
         const beverageIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>`;
         const foodIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>`;
@@ -621,7 +681,10 @@ function updateBranchesView() {
                     <div class="content-group">
                         ${createLinkRow('Beverage Menu', branch.beverage, beverageIcon)}
                         ${createLinkRow('Food Menu', branch.food, foodIcon)}
-                        ${createLinkRow('Retail', branch.retail, retailIcon)}
+                        ${(() => {
+                const retailUrls = branch.retail ? String(branch.retail).split(',') : [];
+                return createMultiLinkRow('Retail', retailUrls, retailIcon);
+            })()}
                     </div>
                 </div>
             </div>
