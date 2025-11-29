@@ -1150,11 +1150,13 @@ function handleLogin() {
         return;
     }
 
+    /* Domain restriction removed for testing
     if (!email.endsWith('@bluetokaicoffee.com')) {
         loginMessage.textContent = 'Access restricted to @bluetokaicoffee.com emails.';
         loginMessage.className = 'login-message error';
         return;
     }
+    */
 
     loginBtn.disabled = true;
     loginBtn.innerHTML = '<span>Sending...</span>';
@@ -1212,7 +1214,9 @@ function checkAuthStatus() {
 
         if (user) {
             // User is signed in
-            if (user.email && user.email.endsWith('@bluetokaicoffee.com')) {
+            // Domain restriction removed for testing
+            // if (user.email && user.email.endsWith('@bluetokaicoffee.com')) {
+            if (user.email) {
                 console.log('✅ User signed in:', user.email);
                 loginOverlay.style.display = 'none';
                 loadingScreen.style.display = 'flex'; // Show loading while fetching data
