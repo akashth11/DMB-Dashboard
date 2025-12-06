@@ -706,6 +706,10 @@ function updatePlaybackView() {
         return;
     }
 
+    // Save Scroll Position
+    const scrollContainer = document.querySelector('.main-content') || window;
+    const scrollPos = scrollContainer.scrollTop || window.scrollY;
+
     const statusFilter = document.getElementById('playback-status-filter').value;
     const categoryFilter = document.getElementById('playback-category-filter').value;
 
@@ -741,6 +745,22 @@ function updatePlaybackView() {
         return true;
     });
 
+    // Sort by Branch Code (Cafe Code) ascending
+    playbackSessions.sort((a, b) => {
+        const codeA = a[1].branchCode || '';
+        const codeB = b[1].branchCode || '';
+
+        // Extract numbers (e.g. CA-229 -> 229)
+        const numA = parseInt(codeA.replace(/\D/g, '')) || 0;
+        const numB = parseInt(codeB.replace(/\D/g, '')) || 0;
+
+        if (numA !== numB) {
+            return numA - numB;
+        }
+
+        return codeA.localeCompare(codeB);
+    });
+
     // 4. Calculate Counts based on the FINAL list
     let totalActive = 0;
     let totalTurnedOff = 0;
@@ -753,15 +773,115 @@ function updatePlaybackView() {
         }
     });
 
-    // Clear list initially
-    playbackList.innerHTML = '';
-
     // Update Count Elements immediately
     const activeCountEl = document.getElementById('playback-count-active');
     const offlineCountEl = document.getElementById('playback-count-offline');
     if (activeCountEl) activeCountEl.textContent = totalActive;
     if (offlineCountEl) offlineCountEl.textContent = totalTurnedOff;
 
+    // Granular DOM Updates (Diff & Patch)
+    // This prevents full re-renders and scroll jumping
+
+    // 1. Create a Set of current device IDs for easy lookup
+    const currentDeviceIds = new Set(playbackSessions.map(([id]) => id));
+
+    // 2. Remove elements that are no longer in the list
+    const existingCards = Array.from(playbackList.children);
+    existingCards.forEach(card => {
+        const cardId = card.getAttribute('data-device-id');
+        if (cardId && !currentDeviceIds.has(cardId)) {
+            card.remove();
+        }
+    });
+
+    // 3. Update or Create elements in the correct order
+    playbackSessions.forEach(([deviceId, session], index) => {
+        const lastActive = session.lastSeen || session.timestamp;
+        const now = Date.now();
+        const THRESHOLD = 30 * 60 * 1000; // 30 minutes
+        const isOld = !lastActive || (now - lastActive) > THRESHOLD;
+
+        // Determine Status (Background)
+        let statusBgClass = 'tv-bg-default';
+        if (isOld) {
+            statusBgClass = 'tv-bg-red'; // Offline
+        } else if (session.status === 'background') {
+            statusBgClass = 'tv-bg-yellow'; // Background Mode
+        } else if (session.status === 'active' || session.status === 'playing') {
+            statusBgClass = 'tv-bg-green'; // Active/Playing
+        }
+
+        // Determine Category (Border)
+        let categoryBorderClass = '';
+        if (session.category) {
+            categoryBorderClass = `tv-border-${session.category.toLowerCase()}`;
+        }
+
+        const branchCode = session.branchCode || 'N/A';
+        const categoryLabel = session.category || '';
+        const title = `${session.branchName || deviceId} - ${session.category}`;
+
+        // Check if card exists
+        let card = document.getElementById(`card-${deviceId}`);
+
+        if (!card) {
+            // Create new card
+            card = document.createElement('div');
+            card.id = `card-${deviceId}`;
+            card.setAttribute('data-device-id', deviceId);
+            card.className = `tv-card ${categoryBorderClass}`;
+            card.onclick = () => showDeviceDetails(deviceId);
+            card.title = title;
+
+            card.innerHTML = `
+                <div class="tv-content ${statusBgClass}">
+                    <span class="tv-code">${branchCode}</span>
+                    <span class="tv-category-label">${categoryLabel}</span>
+                </div>
+            `;
+
+            // Append to list (we will sort/move it next)
+            playbackList.appendChild(card);
+        } else {
+            // Update existing card
+            // Only update attributes if they changed to minimize DOM thrashing
+            if (card.className !== `tv-card ${categoryBorderClass}`) {
+                card.className = `tv-card ${categoryBorderClass}`;
+            }
+            if (card.title !== title) {
+                card.title = title;
+            }
+
+            // Update inner content classes/text
+            const contentDiv = card.querySelector('.tv-content');
+            if (contentDiv) {
+                if (!contentDiv.classList.contains(statusBgClass)) {
+                    // Remove old status classes
+                    contentDiv.classList.remove('tv-bg-default', 'tv-bg-red', 'tv-bg-yellow', 'tv-bg-green');
+                    contentDiv.classList.add(statusBgClass);
+                }
+
+                const codeSpan = contentDiv.querySelector('.tv-code');
+                if (codeSpan && codeSpan.textContent !== branchCode) {
+                    codeSpan.textContent = branchCode;
+                }
+
+                const catSpan = contentDiv.querySelector('.tv-category-label');
+                if (catSpan && catSpan.textContent !== categoryLabel) {
+                    catSpan.textContent = categoryLabel;
+                }
+            }
+        }
+
+        // Ensure Order: Move card to the correct position if needed
+        // playbackList.children[index] should be this card
+        const currentChildAtIndex = playbackList.children[index];
+        if (currentChildAtIndex !== card) {
+            playbackList.insertBefore(card, currentChildAtIndex);
+        }
+    });
+
+    // Handle Empty State
     if (playbackSessions.length === 0) {
         playbackList.innerHTML = `
             <div class="empty-state">
@@ -771,120 +891,8 @@ function updatePlaybackView() {
                 <h3>No Playback Sessions Found</h3>
                 <p>Try adjusting your filters or search query</p>
             </div>
-            `;
-        return;
+        `;
     }
-
-    // Chunked Rendering to prevent main thread blocking
-    window.currentPlaybackRenderId = (window.currentPlaybackRenderId || 0) + 1;
-    const myRenderId = window.currentPlaybackRenderId;
-
-    let currentIndex = 0;
-    const CHUNK_SIZE = 20;
-
-    function renderChunk() {
-        // If a new render has started, stop this one
-        if (myRenderId !== window.currentPlaybackRenderId) return;
-
-        const chunk = playbackSessions.slice(currentIndex, currentIndex + CHUNK_SIZE);
-        if (chunk.length === 0) return;
-
-        const chunkHtml = chunk.map(([deviceId, session]) => {
-            const lastSeen = session.lastSeen || session.timestamp;
-            const isOnline = lastSeen && (Date.now() - lastSeen) < (30 * 60 * 1000);
-
-            // Determine display status based on online state
-            const isTurnedOff = isDeviceTurnedOff(session);
-            const displayStatus = isTurnedOff ? 'Turned Off' : (session.status || 'active');
-            const statusClass = isTurnedOff ? 'offline' : (session.status || 'active');
-
-            return `
-            <div class="playback-card" onclick="showDeviceDetails('${deviceId}')" style="cursor: pointer;">
-            <div class="playback-header">
-                <div class="playback-device">
-                    <h4>${session.branchName}</h4>
-                    <span class="device-id">${deviceId}</span>
-                </div>
-                <div class="playback-status">
-                    <span class="status-badge ${statusClass}">${displayStatus}</span>
-                </div>
-            </div>
-            <div class="playback-details">
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Category</span>
-                    <span class="playback-detail-value">
-                        <span class="category-badge ${session.category?.toLowerCase()}">${session.category}</span>
-                    </span>
-                </div>
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Branch Code</span>
-                    <span class="playback-detail-value">${session.branchCode}</span>
-                </div>
-                <div class="playback-detail">
-                    <span class="playback-detail-label">App Version</span>
-                    <span class="playback-detail-value">${session.appVersion || 'N/A'}</span>
-                </div>
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Started</span>
-                    <span class="playback-detail-value">${formatTimestamp(session.timestamp)}</span>
-                </div>
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Last Seen</span>
-                    <span class="playback-detail-value">${formatTimestamp(session.lastSeen)}</span>
-                </div>
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Device Type</span>
-                    <span class="playback-detail-value">${session.isTv ? 'TV' : 'Mobile/Tablet'}</span>
-                </div>
-            </div>
-            ${session.urls && session.urls.length > 0 ? `
-                <div class="playback-detail">
-                    <span class="playback-detail-label">Content URLs (${session.urls.length})</span>
-                    <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
-                        ${session.urls.slice(0, 3).map(url => {
-                const cleanUrl = url.trim();
-                let linkName = getLinkName(cleanUrl);
-
-                // Handle Drive links
-                if (cleanUrl.includes('drive.google.com')) {
-                    const match = cleanUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                    if (match) {
-                        const driveId = match[1];
-                        if (driveNamesCache[driveId]) {
-                            linkName = driveNamesCache[driveId];
-                        } else {
-                            fetchDriveFileName(driveId);
-                        }
-                    }
-                }
-
-                return `<a href="${cleanUrl}" target="_blank" class="content-link" onclick="event.stopPropagation()">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                </svg>
-                                ${linkName}
-                            </a>`;
-            }).join('')}
-                        ${session.urls.length > 3 ? `<span style="font-size: 0.75rem; color: var(--text-muted);">+${session.urls.length - 3} more...</span>` : ''}
-                    </div>
-                </div>
-            ` : ''
-                }
-        </div>
-            `;
-        }).join('');
-
-        playbackList.insertAdjacentHTML('beforeend', chunkHtml);
-        currentIndex += CHUNK_SIZE;
-
-        if (currentIndex < playbackSessions.length) {
-            requestAnimationFrame(renderChunk);
-        }
-    }
-
-    // Start rendering
-    renderChunk();
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -1302,8 +1310,64 @@ window.showDeviceDetails = function (deviceId) {
                         ${isOnline ? 'Online' : 'Offline'}
                     </span>
                 </div>
+                <div class="detail-item">
+                    <span class="detail-label">Branch Code</span>
+                    <span class="detail-value code">${session.branchCode || 'N/A'}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Category</span>
+                    <span class="detail-value" style="text-transform: capitalize;">${session.category || 'N/A'}</span>
+                </div>
             </div>
         </div >
+
+        <div class="modal-section">
+            <div class="modal-section-title">Playback Content</div>
+            <div class="detail-grid">
+                <div class="detail-item" style="grid-column: 1 / -1;">
+                    <span class="detail-label">Current Playlist / Files</span>
+                    <div class="file-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        ${(session.urls && Array.isArray(session.urls) && session.urls.length > 0)
+            ? session.urls.map((url, index) => {
+                // Extract filename from URL
+                let filename = url;
+                try {
+                    const urlObj = new URL(url);
+                    filename = urlObj.pathname.split('/').pop();
+                    filename = decodeURIComponent(filename);
+                } catch (e) {
+                    console.warn('Could not parse URL:', url);
+                }
+
+                const uniqueId = `preview-${deviceId}-${index}`;
+
+                return `
+                                <div class="file-item-container" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                    <div style="padding: 10px; display: flex; align-items: center; gap: 10px; justify-content: space-between;">
+                                        <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+                                            <div style="background: #e0f2fe; color: #0284c7; padding: 6px; border-radius: 6px;">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                                </svg>
+                                            </div>
+                                            <a href="${url}" target="_blank" style="text-decoration: none; color: #0f172a; font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;" title="${url}">
+                                                ${filename}
+                                            </a>
+                                        </div>
+                                        <button onclick="toggleVideoPreview('${url}', '${uniqueId}')" style="background: white; border: 1px solid #cbd5e1; color: #475569; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">
+                                            Preview
+                                        </button>
+                                    </div>
+                                    <div id="${uniqueId}" class="video-preview" style="display: none; background: #000;"></div>
+                                </div>
+                                `;
+            }).join('')
+            : `<span class="detail-value" style="color: #94a3b8;">No files playing or data unavailable</span>`
+        }
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="modal-section">
             <div class="modal-section-title">Technical Details</div>
@@ -1359,7 +1423,123 @@ window.showDeviceDetails = function (deviceId) {
         `;
 
     modal.classList.add('active');
-};
+}
+
+// Video Preview Logic
+window.toggleVideoPreview = function (url, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+
+        // Determine embed type
+        let embedHtml = '';
+
+        if (url.includes('dropbox.com')) {
+            // Convert to raw direct link
+            const rawUrl = url.replace('dl=0', 'raw=1').replace('dl=1', 'raw=1');
+            embedHtml = `
+                <video controls autoplay name="media" style="width: 100%; height: auto; max-height: 300px; display: block;">
+                    <source src="${rawUrl}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        } else if (url.includes('drive.google.com')) {
+            // Convert to preview embed
+            // Format: https://drive.google.com/file/d/FILE_ID/view... -> https://drive.google.com/file/d/FILE_ID/preview
+            let previewUrl = url;
+            if (url.includes('/view')) {
+                previewUrl = url.replace('/view', '/preview');
+            } else if (!url.includes('/preview')) {
+                // Try to guess structure if view is missing but it is a file link
+                // This is best effort
+                previewUrl = url + '/preview';
+            }
+            embedHtml = `
+                <iframe src="${previewUrl}" width="100%" height="300" style="border:none;"></iframe>
+            `;
+        } else {
+            // Generic Video
+            embedHtml = `
+                <video controls autoplay name="media" style="width: 100%; height: auto; max-height: 300px; display: block;">
+                    <source src="${url}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        }
+
+        container.innerHTML = embedHtml;
+    } else {
+        container.style.display = 'none';
+        container.innerHTML = ''; // Stop playback
+    }
+}
+
+// Full Screen Logic
+window.toggleFullScreen = function () {
+    const playbackView = document.getElementById('playback-view');
+    if (!document.fullscreenElement) {
+        if (playbackView.requestFullscreen) {
+            playbackView.requestFullscreen();
+        } else if (playbackView.webkitRequestFullscreen) { /* Safari */
+            playbackView.webkitRequestFullscreen();
+        } else if (playbackView.msRequestFullscreen) { /* IE11 */
+            playbackView.msRequestFullscreen();
+        }
+        playbackView.classList.add('full-screen-mode');
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) { /* IE11 */
+            document.msExitFullscreen();
+        }
+        playbackView.classList.remove('full-screen-mode');
+    }
+}
+
+// Listen for fullscreen change to update class if user presses Esc
+document.addEventListener('fullscreenchange', () => {
+    const playbackView = document.getElementById('playback-view');
+    if (!document.fullscreenElement) {
+        playbackView.classList.remove('full-screen-mode');
+    } else {
+        playbackView.classList.add('full-screen-mode');
+    }
+});
+
+// Inject Expand Button
+function injectExpandButton() {
+    const controls = document.querySelector('#playback-view .view-controls');
+    if (controls && !document.getElementById('fullscreen-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'fullscreen-btn';
+        btn.className = 'theme-btn';
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+            </svg>
+        `;
+        btn.onclick = window.toggleFullScreen;
+        btn.title = "Toggle Full Screen";
+        btn.style.marginLeft = 'auto'; // Push to right
+        controls.appendChild(btn);
+    }
+}
+
+// Call inject on load
+document.addEventListener('DOMContentLoaded', injectExpandButton);
+
+// Also call it when view changes to playback just in case
+const originalShowView = window.showView;
+window.showView = function (viewId) {
+    if (originalShowView) originalShowView(viewId);
+    if (viewId === 'playback') {
+        setTimeout(injectExpandButton, 100); // Small delay to ensure DOM is ready
+    }
+};;
 
 window.closeModal = function () {
     const modal = document.getElementById('device-modal');
