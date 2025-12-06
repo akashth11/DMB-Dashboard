@@ -51,6 +51,21 @@
 
     /* Typography */
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* Status Colors - Default (Dark Mode) */
+    --status-offline-bg: #7f1d1d;
+    /* Red 900 */
+    --status-offline-text: #fecaca;
+    /* Red 200 */
+    --status-background-bg: #b45309;
+    /* Amber 700 */
+    --status-background-text: #fffbeb;
+    /* Amber 50 */
+    --status-playing-bg: #059669;
+    /* Emerald 600 */
+    --status-playing-text: #ffffff;
+    --status-active-bg: #064e3b;
+    /* Emerald 900 */
+    --status-active-text: #ecfdf5;
 }
 
 /* Light Mode */
@@ -58,7 +73,7 @@
     --bg-primary: #f8fafc;
     --bg-secondary: #ffffff;
     --bg-tertiary: #f1f5f9;
-    --bg-card: rgba(255, 255, 255, 0.8);
+    --bg-card: #ffffff;
 
     --text-primary: #0f172a;
     --text-secondary: #475569;
@@ -74,7 +89,7 @@
     --error: #ef4444;
     --info: #0ea5e9;
 
-    --border-color: rgba(0, 0, 0, 0.08);
+    --border-color: #e2e8f0;
     --overlay-bg: rgba(0, 0, 0, 0.3);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -82,6 +97,21 @@
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.15);
+
+    /* Status Colors - Light Mode (Rich Palette) */
+    --status-offline-bg: #E90C00;
+    /* Off Red */
+    --status-offline-text: #ffffff;
+    --status-background-bg: #F9DD9C;
+    /* Peach Yellow */
+    --status-background-text: #3f2c00;
+    /* Dark Brown */
+    --status-playing-bg: #418B24;
+    /* Forest Green */
+    --status-playing-text: #ffffff;
+    --status-active-bg: #1A4734;
+    /* Brunswick Green */
+    --status-active-text: #ffffff;
 }
 
 * {
@@ -1110,6 +1140,7 @@ body {
     margin-top: 2px;
     opacity: 0.9;
     line-height: 1.1;
+    color: #ffffff;
 }
 
 /* Category Borders (Outline) - Lighter/Pastel Colors */
@@ -1143,50 +1174,53 @@ body {
     box-shadow: 0 0 10px rgba(249, 168, 212, 0.5);
 }
 
-/* Status Backgrounds (Screen) - Lighter Backgrounds with Dark Text */
-.tv-content.tv-bg-green {
-    /* Active/Playing - Light Green */
-    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+/* Status Backgrounds (Screen) */
+.tv-content.tv-bg-active {
+    background: var(--status-active-bg);
 }
 
-.tv-content.tv-bg-green .tv-code {
-    color: #065f46;
-    /* Dark Green Text */
+.tv-content.tv-bg-active .tv-code {
+    color: var(--status-active-text);
+    text-shadow: none;
+}
+
+.tv-content.tv-bg-playing {
+    background: var(--status-playing-bg);
+}
+
+.tv-content.tv-bg-playing .tv-code {
+    color: var(--status-playing-text);
     text-shadow: none;
 }
 
 .tv-content.tv-bg-yellow {
-    /* Background Mode - Light Yellow */
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    background: var(--status-background-bg);
 }
 
-.tv-content.tv-bg-yellow .tv-code {
-    color: #92400e;
-    /* Dark Amber Text */
+.tv-content.tv-bg-yellow .tv-code,
+.tv-content.tv-bg-yellow .tv-name,
+.tv-content.tv-bg-yellow .tv-category-label {
+    color: var(--status-background-text);
     text-shadow: none;
 }
 
 .tv-content.tv-bg-red {
-    /* Offline/Old - Light Red */
-    background: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
-    filter: none;
-    /* Remove grayscale */
+    background: var(--status-offline-bg);
 }
 
 .tv-content.tv-bg-red .tv-code {
-    color: #991b1b;
-    /* Dark Red Text */
+    color: var(--status-offline-text);
     text-shadow: none;
 }
 
 .tv-content.tv-bg-default {
-    background: #f1f5f9;
-    /* Slate 100 */
+    background: #1e293b;
+    /* Slate 800 */
 }
 
 .tv-content.tv-bg-default .tv-code {
-    color: #475569;
-    /* Slate 600 */
+    color: #f1f5f9;
+    /* Slate 100 */
     text-shadow: none;
 }
 
@@ -1214,7 +1248,7 @@ body {
     font-size: 0.45rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgba(0, 0, 0, 0.6);
+    color: rgba(255, 255, 255, 0.7);
     margin-top: 2px;
     z-index: 2;
     font-weight: 600;
@@ -1744,16 +1778,32 @@ body {
     align-items: center;
 }
 
-.stat-badge.active {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: var(--success);
-    border: 1px solid rgba(16, 185, 129, 0.2);
+.status-badge.active {
+    background: var(--status-active-bg);
+    color: var(--status-active-text);
+    border: 1px solid var(--status-active-bg);
+    opacity: 0.9;
 }
 
-.stat-badge.offline {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: var(--error);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+.status-badge.playing {
+    background: var(--status-playing-bg);
+    color: var(--status-playing-text);
+    border: 1px solid var(--status-playing-bg);
+    opacity: 0.9;
+}
+
+.status-badge.background {
+    background: var(--status-background-bg);
+    color: var(--status-background-text);
+    border: 1px solid var(--status-background-bg);
+    opacity: 0.9;
+}
+
+.status-badge.offline {
+    background: var(--status-offline-bg);
+    color: var(--status-offline-text);
+    border: 1px solid var(--status-offline-bg);
+    opacity: 0.9;
 }
 
 @media (max-width: 768px) {

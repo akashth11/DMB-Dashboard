@@ -796,19 +796,20 @@ function updatePlaybackView() {
 
     // 3. Update or Create elements in the correct order
     playbackSessions.forEach(([deviceId, session], index) => {
-        const lastActive = session.lastSeen || session.timestamp;
-        const now = Date.now();
-        const THRESHOLD = 30 * 60 * 1000; // 30 minutes
-        const isOld = !lastActive || (now - lastActive) > THRESHOLD;
+        const isOld = isDeviceTurnedOff(session);
 
-        // Determine Status (Background)
+        // Determine Status Class
         let statusBgClass = 'tv-bg-default';
+        const status = (session.status || '').toLowerCase().trim();
+
         if (isOld) {
-            statusBgClass = 'tv-bg-red'; // Offline
-        } else if (session.status === 'background') {
-            statusBgClass = 'tv-bg-yellow'; // Background Mode
-        } else if (session.status === 'active' || session.status === 'playing') {
-            statusBgClass = 'tv-bg-green'; // Active/Playing
+            statusBgClass = 'tv-bg-red'; // Offline (> 35 mins)
+        } else if (status === 'playing') {
+            statusBgClass = 'tv-bg-playing'; // Light Green
+        } else if (status === 'active') {
+            statusBgClass = 'tv-bg-active'; // Dark Green
+        } else if (status === 'background') {
+            statusBgClass = 'tv-bg-yellow'; // Yellow
         }
 
         // Determine Category (Border)
@@ -1279,13 +1280,20 @@ function init() {
 // Start the app
 init();
 
-// Helper to check if device is turned off
+// Helper to check if device is turned off (offline)
 function isDeviceTurnedOff(session) {
-    const lastActive = session.lastSeen || session.timestamp;
-    if (!lastActive) return true; // If no time, assume turned off? Or active? User said "if last seen not present the timestamp value should be more than 45 minutes"
+    if (!session) return true;
+    const val = session.lastSeen || session.timestamp;
+    if (!val) return true;
+
+    let num = Number(val);
+    if (isNaN(num)) return true; // Invalid timestamp
+
+    if (num < 10000000000) num *= 1000; // Convert seconds to ms
+
     const now = Date.now();
-    const TURNED_OFF_THRESHOLD = 45 * 60 * 1000; // 45 minutes
-    return (now - lastActive) > TURNED_OFF_THRESHOLD;
+    const THRESHOLD = 35 * 60 * 1000; // 35 minutes
+    return (now - num) > THRESHOLD;
 }
 
 // Modal Functions
