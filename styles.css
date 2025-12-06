@@ -1100,6 +1100,18 @@ body {
     transition: background var(--transition-base);
 }
 
+.tv-name {
+    font-size: 0.6rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 2px;
+    opacity: 0.9;
+    line-height: 1.1;
+}
+
 /* Category Borders (Outline) - Lighter/Pastel Colors */
 .tv-card.tv-border-retail {
     border-color: #67e8f9;
@@ -1192,7 +1204,7 @@ body {
 
 .tv-code {
     font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
+    font-size: 0.65rem;
     font-weight: 800;
     z-index: 2;
     line-height: 1;
@@ -1623,7 +1635,8 @@ body {
 .full-screen-mode {
     background: #ffffff !important;
     /* Force white background */
-    padding: var(--spacing-xl);
+    padding: 0;
+    /* Remove padding so sticky header hits the top */
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -1639,16 +1652,24 @@ body {
     position: sticky;
     top: 0;
     background: #ffffff !important;
-    /* Force white background */
-    z-index: 20;
-    padding-bottom: var(--spacing-md);
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: var(--spacing-md);
+    z-index: 100;
+    padding: 1rem 2rem;
+    /* Add padding here */
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    /* Add shadow */
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
 .full-screen-mode .playback-list {
     /* Ensure grid uses available space */
     flex: 1;
+    padding: 2rem;
+    /* Add padding to list */
 }
 
 /* Ensure button looks good */
@@ -1670,8 +1691,39 @@ body {
 }
 
 #fullscreen-btn:hover {
-    background: var(--bg-tertiary);
-    color: var(--accent-primary);
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Fullscreen Search */
+#fullscreen-search-container {
+    display: none;
+    /* Hidden by default */
+}
+
+.full-screen-mode #fullscreen-search-container {
+    display: block;
+    flex: 1;
+    max-width: 400px;
+    margin: 0 1rem;
+}
+
+#fullscreen-search-input {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #0f172a;
+    background: #f8fafc;
+    transition: all 0.2s;
+}
+
+#fullscreen-search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* Playback Stats */

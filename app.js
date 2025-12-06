@@ -821,54 +821,78 @@ function updatePlaybackView() {
         const categoryLabel = session.category || '';
         const title = `${session.branchName || deviceId} - ${session.category}`;
 
+        const cardClass = `tv-card ${categoryBorderClass}`;
+        const contentClass = `tv-content ${statusBgClass}`;
+
         // Check if card exists
         let card = document.getElementById(`card-${deviceId}`);
+        const existingCard = card; // Keep a reference to the potentially existing card
 
         if (!card) {
             // Create new card
             card = document.createElement('div');
             card.id = `card-${deviceId}`;
-            card.setAttribute('data-device-id', deviceId);
-            card.className = `tv-card ${categoryBorderClass}`;
+            card.setAttribute('data-device-id', deviceId); // Add data-device-id attribute
+            card.className = cardClass;
             card.onclick = () => showDeviceDetails(deviceId);
-            card.title = title;
+            card.title = session.branchName || deviceId; // Use session.branchName for title
 
             card.innerHTML = `
-                <div class="tv-content ${statusBgClass}">
-                    <span class="tv-code">${branchCode}</span>
-                    <span class="tv-category-label">${categoryLabel}</span>
+                <div class="${contentClass}">
+                    <span class="tv-code">${session.branchCode || 'N/A'}</span>
+                    <div class="tv-name">${session.branchName || ''}</div>
+                    <div class="tv-category-label">${session.category || ''}</div>
                 </div>
+                <div class="tv-stand"></div>
+                <div class="tv-base"></div>
             `;
 
-            // Append to list (we will sort/move it next)
-            playbackList.appendChild(card);
+            // Insert in correct sorted position
+            if (index < playbackList.children.length) {
+                playbackList.insertBefore(card, playbackList.children[index]);
+            } else {
+                playbackList.appendChild(card);
+            }
         } else {
             // Update existing card
-            // Only update attributes if they changed to minimize DOM thrashing
-            if (card.className !== `tv-card ${categoryBorderClass}`) {
-                card.className = `tv-card ${categoryBorderClass}`;
-            }
-            if (card.title !== title) {
-                card.title = title;
-            }
+            card = existingCard; // Re-assign card to the existing one
 
-            // Update inner content classes/text
+            // Update classes if changed
+            if (card.className !== cardClass) card.className = cardClass;
+            if (card.title !== (session.branchName || deviceId)) card.title = (session.branchName || deviceId); // Update title
+
+            // Update content classes
             const contentDiv = card.querySelector('.tv-content');
-            if (contentDiv) {
-                if (!contentDiv.classList.contains(statusBgClass)) {
-                    // Remove old status classes
-                    contentDiv.classList.remove('tv-bg-default', 'tv-bg-red', 'tv-bg-yellow', 'tv-bg-green');
-                    contentDiv.classList.add(statusBgClass);
-                }
+            if (contentDiv && contentDiv.className !== contentClass) contentDiv.className = contentClass;
 
-                const codeSpan = contentDiv.querySelector('.tv-code');
-                if (codeSpan && codeSpan.textContent !== branchCode) {
-                    codeSpan.textContent = branchCode;
-                }
+            // Update Text Content only if changed
+            const codeSpan = card.querySelector('.tv-code');
+            const codeText = session.branchCode || 'N/A';
+            if (codeSpan && codeSpan.textContent !== codeText) codeSpan.textContent = codeText;
 
-                const catSpan = contentDiv.querySelector('.tv-category-label');
-                if (catSpan && catSpan.textContent !== categoryLabel) {
-                    catSpan.textContent = categoryLabel;
+            const nameDiv = card.querySelector('.tv-name');
+            const nameText = session.branchName || '';
+            if (nameDiv && nameDiv.textContent !== nameText) {
+                nameDiv.textContent = nameText;
+            } else if (!nameDiv && contentDiv) { // If name div doesn't exist (legacy card), insert it
+                const newNameDiv = document.createElement('div');
+                newNameDiv.className = 'tv-name';
+                newNameDiv.textContent = nameText;
+                // Insert after codeSpan
+                codeSpan.after(newNameDiv);
+            }
+
+            const catDiv = card.querySelector('.tv-category-label');
+            const catText = session.category || '';
+            if (catDiv && catDiv.textContent !== catText) catDiv.textContent = catText;
+
+            // Reorder if needed
+            const currentIdx = Array.from(playbackList.children).indexOf(card);
+            if (currentIdx !== index) {
+                if (index < playbackList.children.length) {
+                    playbackList.insertBefore(card, playbackList.children[index]);
+                } else {
+                    playbackList.appendChild(card);
                 }
             }
         }
@@ -1510,36 +1534,59 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 
-// Inject Expand Button
-function injectExpandButton() {
+// Inject Fullscreen Controls (Button + Search)
+function injectFullscreenControls() {
     const controls = document.querySelector('#playback-view .view-controls');
-    if (controls && !document.getElementById('fullscreen-btn')) {
-        const btn = document.createElement('button');
-        btn.id = 'fullscreen-btn';
-        btn.className = 'theme-btn';
-        btn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-        `;
-        btn.onclick = window.toggleFullScreen;
-        btn.title = "Toggle Full Screen";
-        btn.style.marginLeft = 'auto'; // Push to right
-        controls.appendChild(btn);
+    if (controls) {
+        // 1. Inject Search Input if not present
+        if (!document.getElementById('fullscreen-search-input')) {
+            const searchContainer = document.createElement('div');
+            searchContainer.id = 'fullscreen-search-container';
+            searchContainer.innerHTML = `
+                <input type="text" id="fullscreen-search-input" placeholder="Search Cafe Code or Name...">
+            `;
+            // Insert before the expand button or at the end
+            controls.appendChild(searchContainer);
+
+            // Add Event Listener
+            const input = searchContainer.querySelector('input');
+            input.addEventListener('input', (e) => {
+                currentSearchQuery = e.target.value.trim();
+                updatePlaybackView();
+
+                // Sync with main search box if it exists
+                const mainSearch = document.querySelector('.search-box input');
+                if (mainSearch) mainSearch.value = currentSearchQuery;
+            });
+        }
+
+        // 2. Inject Expand Button if not present
+        if (!document.getElementById('fullscreen-btn')) {
+            const btn = document.createElement('button');
+            btn.id = 'fullscreen-btn';
+            btn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+            `;
+            btn.onclick = toggleFullScreen;
+            btn.title = "Toggle Full Screen";
+            controls.appendChild(btn);
+        }
     }
 }
 
 // Call inject on load
-document.addEventListener('DOMContentLoaded', injectExpandButton);
+document.addEventListener('DOMContentLoaded', injectFullscreenControls);
 
-// Also call it when view changes to playback just in case
+// Override showView to inject controls
 const originalShowView = window.showView;
 window.showView = function (viewId) {
     if (originalShowView) originalShowView(viewId);
     if (viewId === 'playback') {
-        setTimeout(injectExpandButton, 100); // Small delay to ensure DOM is ready
+        setTimeout(injectFullscreenControls, 100);
     }
-};;
+};
 
 window.closeModal = function () {
     const modal = document.getElementById('device-modal');
